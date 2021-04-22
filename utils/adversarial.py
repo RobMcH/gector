@@ -99,6 +99,7 @@ def perturb_adverb(token: spacy.tokens.token.Token) -> str:
 
 
 def perturb_pronoun(token: spacy.tokens.token.Token) -> str:
+    # Randomly pick a pronoun from a different pronoun type.
     pronoun = token.text.lower()
     if pronoun in SBJ_PRONOUNS:
         pronoun_category = 0
