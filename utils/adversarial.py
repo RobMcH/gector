@@ -16,9 +16,9 @@ def find_word_perturbation(sentence: str, target_idx: int):
     elif pos == "VERB":
         perturbation = perturb_verb(target_token)
     elif pos == "ADJ":
-        pass
+        perturbation = perturb_adjective(target_token)
     elif pos == "ADV":
-        pass
+        perturbation = perturb_adverb(target_token)
     elif pos == "NUM" or pos == "PROPN":
         # Remain unchanged.
         perturbation = target_token.text
