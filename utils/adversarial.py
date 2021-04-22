@@ -16,6 +16,11 @@ COMPLEMENT_PRONOUNS = {0: [OBJ_PRONOUNS, POS_PRONOUNS, REF_PRONOUNS],
                        2: [SBJ_PRONOUNS, OBJ_PRONOUNS, REF_PRONOUNS],
                        3: [SBJ_PRONOUNS, OBJ_PRONOUNS, POS_PRONOUNS]}
 # --- --- #
+# Verb tenses #
+VERB_TENSES = {'present plural': 0, '1st singular present': 0, '2nd singular present': 0, 'present participle': 1,
+               'past': 2, 'past plural': 2, '1st singular past': 2, '2nd singular past': 2, '3rd singular past': 2,
+               'past participle': 3, '3rd singular present': 4, 'infinitive': 5}
+# --- --- #
 
 
 def find_word_perturbation(sentence: str, target_idx: int) -> str:
@@ -55,8 +60,13 @@ def perturb_noun(token: spacy.tokens.token.Token) -> str:
 
 
 def perturb_verb(token: spacy.tokens.token.Token) -> str:
-    # Perturb verb by changing it to its present, progressive, past, perfect, or 3rd person singular form.
-    form = np.random.randint(5)
+    # Perturb verb by changing it to its present, progressive, past, perfect, 3rd person singular, or infinitive form.
+    try:
+        tense = VERB_TENSES[nle.verb.tense(token.text)]
+    except KeyError:
+        # Handle the case when the verb is unknown.
+        return token.text
+    form = np.random.choice([i for i in range(6) if i != tense])
     if form == 0:
         # Present form.
         return nle.verb.present(token.text)
@@ -72,6 +82,9 @@ def perturb_verb(token: spacy.tokens.token.Token) -> str:
     elif form == 4:
         # 3rd person singular form.
         return nle.verb.present(token.text, person=3)
+    elif form == 5:
+        # Infinitive.
+        return nle.verb.infinitive(token.text)
 
 
 def perturb_adjective(token: spacy.tokens.token.Token) -> str:
