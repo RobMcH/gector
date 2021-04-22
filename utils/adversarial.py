@@ -7,7 +7,7 @@ import nodebox_linguistics_extended as nle
 nlp = spacy.load("en_core_web_sm", disable=["ner", "lemmatizer"])
 
 
-def find_word_perturbation(sentence: str, target_idx: int):
+def find_word_perturbation(sentence: str, target_idx: int) -> str:
     doc = nlp(sentence)
     target_token = doc[target_idx]
     pos = target_token.pos_
