@@ -1,6 +1,6 @@
 import spacy
 import numpy as np
-# https://www.nodebox.net/code/index.php/Linguistics.html#indefinite_article
+# https://www.nodebox.net/code/index.php/Linguistics.html
 import nodebox_linguistics_extended as nle
 
 # Used for obtaining POS tags.
@@ -43,7 +43,7 @@ def perturb_noun(token: spacy.tokens.token.Token) -> str:
 
 def perturb_verb(token: spacy.tokens.token.Token) -> str:
     # Perturb verb by changing it to its present, progressive, past, perfect, or 3rd person singular form.
-    form = np.random.choice([i for i in range(5)])
+    form = np.random.randint(5)
     if form == 0:
         # Present form.
         return nle.verb.present(token.text)
