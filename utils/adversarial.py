@@ -1,10 +1,21 @@
 import spacy
+import random
 import numpy as np
 # https://www.nodebox.net/code/index.php/Linguistics.html
 import nodebox_linguistics_extended as nle
 
 # Used for obtaining POS tags.
 nlp = spacy.load("en_core_web_sm", disable=["ner", "lemmatizer"])
+# Pronoun lists #
+SBJ_PRONOUNS = {"i", "you", "he", "she", "it", "we", "you", "they"}
+OBJ_PRONOUNS = {"me", "you", "him", "her", "it", "us", "you", "them"}
+POS_PRONOUNS = {"mine", "yours", "his", "hers", "ours", "yours", "theirs"}
+REF_PRONOUNS = {"myself", "yourself", "himself", "herself", "itself", "ourselves", "yourselves", "themselves"}
+COMPLEMENT_PRONOUNS = {0: [OBJ_PRONOUNS, POS_PRONOUNS, REF_PRONOUNS],
+                       1: [SBJ_PRONOUNS, POS_PRONOUNS, REF_PRONOUNS],
+                       2: [SBJ_PRONOUNS, OBJ_PRONOUNS, REF_PRONOUNS],
+                       3: [SBJ_PRONOUNS, OBJ_PRONOUNS, POS_PRONOUNS]}
+# --- --- #
 
 
 def find_word_perturbation(sentence: str, target_idx: int) -> str:
@@ -19,6 +30,8 @@ def find_word_perturbation(sentence: str, target_idx: int) -> str:
         perturbation = perturb_adjective(target_token)
     elif pos == "ADV":
         perturbation = perturb_adverb(target_token)
+    elif pos == "PRON":
+        perturbation = perturb_pronoun(target_token)
     elif pos == "NUM" or pos == "PROPN":
         # Remain unchanged.
         perturbation = target_token.text
@@ -83,6 +96,25 @@ def perturb_adverb(token: spacy.tokens.token.Token) -> str:
         return token.text[:-4]
     else:
         return token.text[:-2]
+
+
+def perturb_pronoun(token: spacy.tokens.token.Token) -> str:
+    pronoun = token.text.lower()
+    if pronoun in SBJ_PRONOUNS:
+        pronoun_category = 0
+    elif pronoun in OBJ_PRONOUNS:
+        pronoun_category = 1
+    elif pronoun in POS_PRONOUNS:
+        pronoun_category = 2
+    elif pronoun in REF_PRONOUNS:
+        pronoun_category = 3
+    else:
+        # Error handling.
+        return token.text
+    # Randomly pick one of the three complement categories.
+    sample_category = np.random.randint(3)
+    # Randomly pick one of the forms in this category.
+    return random.sample(COMPLEMENT_PRONOUNS[pronoun_category][sample_category], 1)[0]
 
 
 def perturb(token: spacy.tokens.token.Token) -> str:
