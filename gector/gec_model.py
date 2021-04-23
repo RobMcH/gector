@@ -73,6 +73,9 @@ class GecBERTModel(object):
         self.iterations = iterations
         self.confidence = confidence
         self.resolve_cycles = resolve_cycles
+        # assuming we will only be doing it for a single model for now....
+        self.model_name = model_name
+        self.special_tokens_fix = special_tokens_fix
         # set training parameters and operations
 
         self.indexers = []
@@ -320,3 +323,25 @@ class GecBERTModel(object):
                 break
 
         return final_batch, total_updates
+
+    def extract_attention(self, full_batch):
+        #adapting the handle batch and predict methods in order to extract attention weights
+        final_batch = full_batch[:]
+        short_ids = [i for i in range(len(full_batch))
+                     if len(full_batch[i]) < self.min_len]
+        pred_ids = [i for i in range(len(full_batch)) if i not in short_ids]
+
+        #assuming one iteration for now... TBD what we will do here
+        # for n_iter in range(self.iterations):
+        orig_batch = [final_batch[i] for i in pred_ids]
+        sequences = self.preprocess(orig_batch)
+        batch_attn_weights = []
+        #we will only be using a single model...BERT
+        for batch, model in zip(sequences, self.models):
+            batch = util.move_to_device(batch.as_tensor_dict(), 0 if torch.cuda.is_available() else -1)
+            with torch.no_grad():
+                input_ids, offsets =batch['tokens']['bert'], batch['tokens']['bert-offsets']
+                _, attention_outputs =  self.models[0].text_field_embedder.token_embedder_bert(input_ids, offsets,
+                                                                                        extract_attention = True)
+            batch_attn_weights.append(attention_outputs)
+        return batch_attn_weights
