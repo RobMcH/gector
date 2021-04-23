@@ -324,7 +324,7 @@ class GecBERTModel(object):
 
         return final_batch, total_updates
 
-    def extract_attention(self, full_batch):
+    def extract_candidate_words(self, full_batch, layer = 0):
         #adapting the handle batch and predict methods in order to extract attention weights
         final_batch = full_batch[:]
         short_ids = [i for i in range(len(full_batch))
@@ -335,7 +335,7 @@ class GecBERTModel(object):
         # for n_iter in range(self.iterations):
         orig_batch = [final_batch[i] for i in pred_ids]
         sequences = self.preprocess(orig_batch)
-        batch_attn_weights = []
+        batch_imp_tokens = []
         #we will only be using a single model...BERT
         for batch, model in zip(sequences, self.models):
             batch = util.move_to_device(batch.as_tensor_dict(), 0 if torch.cuda.is_available() else -1)
@@ -343,5 +343,19 @@ class GecBERTModel(object):
                 input_ids, offsets =batch['tokens']['bert'], batch['tokens']['bert-offsets']
                 _, attention_outputs =  self.models[0].text_field_embedder.token_embedder_bert(input_ids, offsets,
                                                                                         extract_attention = True)
-            batch_attn_weights.append(attention_outputs)
-        return batch_attn_weights
+            #take out attention matrices for layer of interest
+            layer_attn = attention_outputs[layer]
+            #sum over multi heads
+            # layer_aggr_attn = torch.sum(layer_attn, axis=1)
+            layer_aggr_attn =layer_attn[:,4,:,:]
+            #sum attention weights for each input token and take argmax
+            imp_token_index = torch.sum(layer_aggr_attn, axis=2).argmax(axis=1)
+            #extract id of token deemed important
+            imp_tokens_id = input_ids.gather(1, imp_token_index.view(-1, 1))
+            #get corresponding token using id
+            token_list = list(self.indexers[0]['bert'].vocab.keys()) #ordered dict keys->list, okay to index in to
+            imp_tokens = [token_list[idx]for idx in imp_tokens_id]
+            #input id and token ,pairs
+            #probably need both the index in input sentence and the word
+            batch_imp_tokens.append(imp_tokens)
+        return batch_imp_tokens

@@ -6,18 +6,18 @@ from gector.gec_model import GecBERTModel
 
 def attention_for_file(input_file, model, batch_size=32):
     test_data = read_lines(input_file)
-    batch_attentions = []
+    batch_extracted_words = []
     batch = []
     for sent in test_data:
         batch.append(sent.split())
         if len(batch) == batch_size:
-            extracted_attns  = model.extract_attention(batch)
-            batch_attentions.extend(extracted_attns)
+            extracted_words  = model.extract_candidate_words(batch)
+            batch_extracted_words.extend(extracted_words)
             batch = []
     if batch:
-        extracted_attns = model.extract_attention(batch)
-        batch_attentions.extend(extracted_attns)
-    return batch_attentions
+        extracted_words = model.extract_candidate_words(batch)
+        batch_extracted_words.extend(extracted_words)
+    return batch_extracted_words
 
 
 def main(args):
@@ -36,6 +36,7 @@ def main(args):
                          weigths=args.weights)
 
     attns = attention_for_file(args.input_file, model, batch_size=args.batch_size)
+
 
 if __name__ == '__main__':
 
