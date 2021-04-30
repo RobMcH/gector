@@ -11,7 +11,7 @@ def attention_for_file(input_file, model, batch_size=32):
     for sent in test_data:
         batch.append(sent.split())
         if len(batch) == batch_size:
-            extracted_words  = model.extract_candidate_words(batch)
+            extracted_words = model.extract_candidate_words(batch)
             batch_extracted_words.extend(extracted_words)
             batch = []
     if batch:
