@@ -2,12 +2,14 @@ import argparse
 
 from utils.helpers import read_lines
 from gector.gec_model import GecBERTModel
+import utils.adversarial as adv
 
 
-def attention_for_file(input_file, model, batch_size=32):
+def perturbations_for_file(input_file: str, model: GecBERTModel, batch_size: int = 32):
     test_data = read_lines(input_file)
     batch_extracted_words = []
     batch = []
+    # Extract attention scores for inputs.
     for sent in test_data:
         batch.append(sent.split())
         if len(batch) == batch_size:
@@ -17,7 +19,11 @@ def attention_for_file(input_file, model, batch_size=32):
     if batch:
         extracted_words = model.extract_candidate_words(batch)
         batch_extracted_words.extend(extracted_words)
-    return batch_extracted_words
+    # Generate perturbed outputs.
+    perturbed_batch = []
+    for i in range(len(test_data)):
+        perturbed_batch.append(adv.find_word_perturbation(test_data[i], batch_extracted_words[i]))
+    return perturbed_batch
 
 
 def main(args):
@@ -35,7 +41,7 @@ def main(args):
                          is_ensemble=args.is_ensemble,
                          weigths=args.weights)
 
-    attns = attention_for_file(args.input_file, model, batch_size=args.batch_size)
+    perturbed_inputs = perturbations_for_file(args.input_file, model, batch_size=args.batch_size)
 
 
 if __name__ == '__main__':

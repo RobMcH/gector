@@ -15,6 +15,8 @@ from allennlp.data.vocabulary import Vocabulary
 from allennlp.modules.text_field_embedders import BasicTextFieldEmbedder
 from allennlp.nn import util
 
+from typing import List
+
 from gector.bert_token_embedder import PretrainedBertEmbedder
 from gector.seq2labels_model import Seq2Labels
 from gector.wordpiece_indexer import PretrainedBertIndexer
@@ -226,8 +228,7 @@ class GecBERTModel(object):
         idx = max_vals[1].tolist()
         return probs, idx, error_probs.tolist()
 
-    def update_final_batch(self, final_batch, pred_ids, pred_batch,
-                           prev_preds_dict):
+    def update_final_batch(self, final_batch, pred_ids, pred_batch, prev_preds_dict):
         new_pred_ids = []
         total_updated = 0
         for i, orig_id in enumerate(pred_ids):
@@ -247,15 +248,10 @@ class GecBERTModel(object):
                 continue
         return final_batch, new_pred_ids, total_updated
 
-    def postprocess_batch(self, batch, all_probabilities, all_idxs,
-                          error_probs,
-                          max_len=50):
+    def postprocess_batch(self, batch, all_probabilities, all_idxs, error_probs, max_len=50):
         all_results = []
         noop_index = self.vocab.get_token_index("$KEEP", "labels")
-        for tokens, probabilities, idxs, error_prob in zip(batch,
-                                                           all_probabilities,
-                                                           all_idxs,
-                                                           error_probs):
+        for tokens, probabilities, idxs, error_prob in zip(batch, all_probabilities, all_idxs, error_probs):
             length = min(len(tokens), max_len)
             edits = []
 
@@ -279,10 +275,8 @@ class GecBERTModel(object):
                 if idxs[i] == noop_index:
                     continue
 
-                sugg_token = self.vocab.get_token_from_index(idxs[i],
-                                                             namespace='labels')
-                action = self.get_token_action(token, i, probabilities[i],
-                                               sugg_token)
+                sugg_token = self.vocab.get_token_from_index(idxs[i], namespace='labels')
+                action = self.get_token_action(token, i, probabilities[i], sugg_token)
                 if not action:
                     continue
 
@@ -297,61 +291,52 @@ class GecBERTModel(object):
         final_batch = full_batch[:]
         batch_size = len(full_batch)
         prev_preds_dict = {i: [final_batch[i]] for i in range(len(final_batch))}
-        short_ids = [i for i in range(len(full_batch))
-                     if len(full_batch[i]) < self.min_len]
+        short_ids = [i for i in range(len(full_batch)) if len(full_batch[i]) < self.min_len]
         pred_ids = [i for i in range(len(full_batch)) if i not in short_ids]
         total_updates = 0
 
         for n_iter in range(self.iterations):
             orig_batch = [final_batch[i] for i in pred_ids]
-
             sequences = self.preprocess(orig_batch)
-
             if not sequences:
                 break
+
             probabilities, idxs, error_probs = self.predict(sequences)
-
-            pred_batch = self.postprocess_batch(orig_batch, probabilities,
-                                                idxs, error_probs)
+            pred_batch = self.postprocess_batch(orig_batch, probabilities, idxs, error_probs)
             if self.log:
-                print(f"Iteration {n_iter + 1}. Predicted {round(100*len(pred_ids)/batch_size, 1)}% of sentences.")
+                print(f"Iteration {n_iter + 1}. Predicted {round(100 * len(pred_ids) / batch_size, 1)}% of sentences.")
 
-            final_batch, pred_ids, cnt = \
-                self.update_final_batch(final_batch, pred_ids, pred_batch,
-                                        prev_preds_dict)
+            final_batch, pred_ids, cnt = self.update_final_batch(final_batch, pred_ids, pred_batch, prev_preds_dict)
             total_updates += cnt
-
             if not pred_ids:
                 break
 
         return final_batch, total_updates
 
-    def extract_candidate_words(self, full_batch, layer = 0):
-        #adapting the handle batch and predict methods in order to extract attention weights
+    def extract_candidate_words(self, full_batch: List[str], layer: int = 0) -> List[int]:
+        # Adapting the handle batch and predict methods in order to extract attention weights.
         final_batch = full_batch[:]
         short_ids = [i for i in range(len(full_batch))
                      if len(full_batch[i]) < self.min_len]
         pred_ids = [i for i in range(len(full_batch)) if i not in short_ids]
 
-        #assuming one iteration for now... TBD what we will do here
-        # for n_iter in range(self.iterations):
+        # Assuming one iteration for now... TBD what we will do here
         orig_batch = [final_batch[i] for i in pred_ids]
         sequences = self.preprocess(orig_batch)
-        batch_imp_tokens = []
-        #we will only be using a single model...BERT
+
         for batch, model in zip(sequences, self.models):
             batch = util.move_to_device(batch.as_tensor_dict(), 0 if torch.cuda.is_available() else -1)
             with torch.no_grad():
-                input_ids, offsets =batch['tokens']['bert'], batch['tokens']['bert-offsets']
-                _, attention_outputs =  self.models[0].text_field_embedder.token_embedder_bert(input_ids, offsets,
-                                                                                        extract_attention = True)
-            #take out attention matrices for layer of interest
+                input_ids, offsets = batch['tokens']['bert'], batch['tokens']['bert-offsets']
+                _, attention_outputs = self.models[0].text_field_embedder.token_embedder_bert(input_ids, offsets,
+                                                                                              extract_attention=True)
+            # Take out attention matrices for layer of interest
             layer_attn = attention_outputs[layer]  # shape = (2,12,10,10)
-            #sum over multi heads
+            # Sum over multi heads
             layer_aggr_attn = torch.sum(layer_attn, axis=1)  # aggregate heads
             # layer_aggr_attn =layer_attn[:,4,:,:]  # or pick a particular head
             # now shape is (2,10,10)
-            #sum attention weights for each input token
+            # sum attention weights for each input token
             token_list = list(self.indexers[0]['bert'].vocab.keys())
             attention_vals = torch.sum(layer_aggr_attn, axis=1)
             max_idxs = []
@@ -365,67 +350,23 @@ class GecBERTModel(object):
                 word_score = 0
                 for a_idx, attention_val in enumerate(sentence):
                     word = token_list[input_ids[s_idx, a_idx]]
-                    # print(f'word: {word} with attn val {attention_val}')
+                    attention_val = attention_val.item()
                     if word not in ['[CLS]', '$', '##ST', '##AR', '##T', '[PAD]']:
                         if word == '[SEP]':
-                            # sentence over
+                            # Sentence is over.
                             sent_scores.append(word_score)
-                            # print('End of sentence')
                         else:
                             if word.startswith('##'):
-                                # add to previous word
+                                # Add to previous word.
                                 word_score += attention_val
-                                # print(f'starts with ##, append to previous, current word score {word_score}')
                             elif word_score > 0:
                                 sent_scores.append(word_score)
-                                # print(f'end previous word with score {word_score}\n')
                                 word_score = attention_val
                             else:
-                                # first word in sentence
+                                # First word in sentence.
                                 word_score += attention_val
-                                # print('first word in sentence')
                 print('original sentence: ', orig_batch[s_idx])
                 b = np.argmax(sent_scores)
                 print('idx of best:', b, '=', orig_batch[s_idx][b])
                 max_idxs.append(np.argmax(sent_scores))
-
         return max_idxs
-
-        #     # now make a mask to remove unwanted tokens
-        #     # first count number of non-padding tokens
-        #     nonzeros = attention_vals.count_nonzero(dim=1) - 1  # count non-zeros
-        #     n_ones = nonzeros[0]
-        #     ncols = attention_vals.shape[1]
-        #     # now create a mask to eventually zero out unwanted tokens
-        #     # start by zeroing out padding and last token in sentence
-        #     mask = torch.repeat_interleave(torch.tensor([1, 0]), torch.tensor([n_ones, ncols - n_ones]), dim=None).unsqueeze(0)
-        #     # loop through rows appending appropriate mask for each row
-        #     for i, n_ones in enumerate(nonzeros[1:]):
-        #         new_row = torch.repeat_interleave(torch.tensor([1, 0]), torch.tensor([n_ones, ncols - n_ones]), dim=None).unsqueeze(0)
-        #         mask = torch.cat([mask, new_row], axis=0)
-        #     # finally remove first 5 tokens from each sentence
-        #     mask[:, :5] -= 1
-        #     attention_vals *= mask  # apply the mask
-        #
-        #     # find token with max attention
-        #     imp_token_index = attention_vals.argmax(axis=1)
-        #     #extract id of token deemed important
-        #     imp_tokens_id = input_ids.gather(1, imp_token_index.view(-1, 1))
-        #     # given these id's we wish to find the original sentence id and return that
-        #     # issue: have to deal with duplicates
-        #     # bool if imp token is repeated in each sentence
-        #     duplicate_seqs = torch.sum(input_ids == imp_tokens_id, axis=1) > 1
-        #     # loop through duplicates and recover
-        #     for idx, dup in enumerate(duplicate_seqs):
-        #         if dup == True:
-        #             # do something to deal with dups
-        #             pass
-        #     # we have the index in the bert embedded sentence
-        #
-        #     #get corresponding token using id
-        #     token_list = list(self.indexers[0]['bert'].vocab.keys()) #ordered dict keys->list, okay to index in to
-        #     imp_tokens = [token_list[idx] for idx in imp_tokens_id]
-        #     #input id and token ,pairs
-        #     #probably need both the index in input sentence and the word
-        #     batch_imp_tokens.append(imp_tokens)
-        # return batch_imp_tokens
