@@ -26,7 +26,7 @@ class PretrainedBertModel:
         if model_name in cls._cache:
             return PretrainedBertModel._cache[model_name]
 
-        model = AutoModel.from_pretrained(model_name)
+        model = AutoModel.from_pretrained(model_name, output_attentions=True)
         if cache_model:
             cls._cache[model_name] = model
 
@@ -89,8 +89,9 @@ class BertEmbedder(TokenEmbedder):
     def forward(
         self,
         input_ids: torch.LongTensor,
-        offsets: torch.LongTensor = None
-    ) -> torch.Tensor:
+        offsets: torch.LongTensor = None,
+        extract_attention = False
+    ) :
         """
         Parameters
         ----------
@@ -141,10 +142,12 @@ class BertEmbedder(TokenEmbedder):
         input_mask = (input_ids != 0).long()
         # input_ids may have extra dimensions, so we reshape down to 2-d
         # before calling the BERT model and then reshape back at the end.
-        all_encoder_layers = self.bert_model(
+        model_outputs = self.bert_model(
             input_ids=util.combine_initial_dims(input_ids),
             attention_mask=util.combine_initial_dims(input_mask),
-        )[0]
+        )
+        all_encoder_layers = model_outputs[0]
+        attention_outputs = model_outputs[2]
         if len(all_encoder_layers[0].shape) == 3:
             all_encoder_layers = torch.stack(all_encoder_layers)
         elif len(all_encoder_layers[0].shape) == 2:
@@ -208,7 +211,10 @@ class BertEmbedder(TokenEmbedder):
         if offsets is None:
             # Resize to (batch_size, d1, ..., dn, sequence_length, embedding_dim)
             dims = initial_dims if needs_split else input_ids.size()
-            return util.uncombine_initial_dims(mix, dims)
+            if extract_attention:
+                return util.uncombine_initial_dims(mix, dims), attention_outputs
+            else:
+                return util.uncombine_initial_dims(mix, dims)
         else:
             # offsets is (batch_size, d1, ..., dn, orig_sequence_length)
             offsets2d = util.combine_initial_dims(offsets)
@@ -218,9 +224,10 @@ class BertEmbedder(TokenEmbedder):
             ).unsqueeze(1)
             # selected embeddings is also (batch_size * d1 * ... * dn, orig_sequence_length)
             selected_embeddings = mix[range_vector, offsets2d]
-
-            return util.uncombine_initial_dims(selected_embeddings, offsets.size())
-
+            if extract_attention:
+                return util.uncombine_initial_dims(selected_embeddings, offsets.size()), attention_outputs
+            else:
+                return util.uncombine_initial_dims(selected_embeddings, offsets.size())
 
 # @TokenEmbedder.register("bert-pretrained")
 class PretrainedBertEmbedder(BertEmbedder):
@@ -252,7 +259,7 @@ class PretrainedBertEmbedder(BertEmbedder):
         special_tokens_fix: int = 0,
     ) -> None:
         model = PretrainedBertModel.load(pretrained_model)
-
+        # model.config.output_attentions=True
         for param in model.parameters():
             param.requires_grad = requires_grad
 

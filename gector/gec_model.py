@@ -73,6 +73,9 @@ class GecBERTModel(object):
         self.iterations = iterations
         self.confidence = confidence
         self.resolve_cycles = resolve_cycles
+        # assuming we will only be doing it for a single model for now....
+        self.model_name = model_name
+        self.special_tokens_fix = special_tokens_fix
         # set training parameters and operations
 
         self.indexers = []
@@ -320,3 +323,59 @@ class GecBERTModel(object):
                 break
 
         return final_batch, total_updates
+
+    def extract_candidate_words(self, full_batch, layer = 0):
+        #adapting the handle batch and predict methods in order to extract attention weights
+        final_batch = full_batch[:]
+        short_ids = [i for i in range(len(full_batch))
+                     if len(full_batch[i]) < self.min_len]
+        pred_ids = [i for i in range(len(full_batch)) if i not in short_ids]
+
+        #assuming one iteration for now... TBD what we will do here
+        # for n_iter in range(self.iterations):
+        orig_batch = [final_batch[i] for i in pred_ids]
+        sequences = self.preprocess(orig_batch)
+        batch_imp_tokens = []
+        #we will only be using a single model...BERT
+        for batch, model in zip(sequences, self.models):
+            batch = util.move_to_device(batch.as_tensor_dict(), 0 if torch.cuda.is_available() else -1)
+            with torch.no_grad():
+                input_ids, offsets =batch['tokens']['bert'], batch['tokens']['bert-offsets']
+                _, attention_outputs =  self.models[0].text_field_embedder.token_embedder_bert(input_ids, offsets,
+                                                                                        extract_attention = True)
+            #take out attention matrices for layer of interest
+            layer_attn = attention_outputs[layer]  # shape = (2,12,10,10)
+            #sum over multi heads
+            layer_aggr_attn = torch.sum(layer_attn, axis=1)  # aggregate heads
+            # layer_aggr_attn =layer_attn[:,4,:,:]  # or pick a particular head
+            # now shape is (2,10,10)
+            #sum attention weights for each input token
+            attention_vals = torch.sum(layer_aggr_attn, axis=1)
+
+            # now make a mask to remove unwanted tokens
+            # first count number of non-padding tokens
+            nonzeros = attention_vals.count_nonzero(dim=1) - 1  # count non-zeros
+            n_ones = nonzeros[0]
+            ncols = attention_vals.shape[1]
+            # now create a mask to eventually zero out unwanted tokens
+            # start by zeroing out padding and last token in sentence
+            mask = torch.repeat_interleave(torch.tensor([1, 0]), torch.tensor([n_ones, ncols - n_ones]), dim=None).unsqueeze(0)
+            # loop through rows appending appropriate mask for each row
+            for n_ones in nonzeros[1:]:
+                new_row = torch.repeat_interleave(torch.tensor([1, 0]), torch.tensor([n_ones, ncols - n_ones]), dim=None).unsqueeze(0)
+                mask = torch.cat([mask, new_row], axis=0)
+            # finally remove first 5 tokens from each sentence
+            mask[:, :5] -= 1
+            attention_vals *= mask  # apply the mask
+
+            # find token with max attention
+            imp_token_index = attention_vals.argmax(axis=1)
+            #extract id of token deemed important
+            imp_tokens_id = input_ids.gather(1, imp_token_index.view(-1, 1))
+            #get corresponding token using id
+            token_list = list(self.indexers[0]['bert'].vocab.keys()) #ordered dict keys->list, okay to index in to
+            imp_tokens = [token_list[idx] for idx in imp_tokens_id]
+            #input id and token ,pairs
+            #probably need both the index in input sentence and the word
+            batch_imp_tokens.append(imp_tokens)
+        return batch_imp_tokens
