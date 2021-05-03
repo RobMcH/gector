@@ -4,6 +4,8 @@ import os
 import sys
 from time import time
 
+import numpy as np
+
 import torch
 from allennlp.data.dataset import Batch
 from allennlp.data.fields import TextField
@@ -350,32 +352,80 @@ class GecBERTModel(object):
             # layer_aggr_attn =layer_attn[:,4,:,:]  # or pick a particular head
             # now shape is (2,10,10)
             #sum attention weights for each input token
+            token_list = list(self.indexers[0]['bert'].vocab.keys())
             attention_vals = torch.sum(layer_aggr_attn, axis=1)
+            max_idxs = []
+            for s_idx, sentence in enumerate(attention_vals):
+                # for debugging
+                bert_sen = [token_list[idx] for idx in input_ids[s_idx]]
+                print('bert sentence:', bert_sen)
+                print('sentence attn vals:', sentence)
 
-            # now make a mask to remove unwanted tokens
-            # first count number of non-padding tokens
-            nonzeros = attention_vals.count_nonzero(dim=1) - 1  # count non-zeros
-            n_ones = nonzeros[0]
-            ncols = attention_vals.shape[1]
-            # now create a mask to eventually zero out unwanted tokens
-            # start by zeroing out padding and last token in sentence
-            mask = torch.repeat_interleave(torch.tensor([1, 0]), torch.tensor([n_ones, ncols - n_ones]), dim=None).unsqueeze(0)
-            # loop through rows appending appropriate mask for each row
-            for n_ones in nonzeros[1:]:
-                new_row = torch.repeat_interleave(torch.tensor([1, 0]), torch.tensor([n_ones, ncols - n_ones]), dim=None).unsqueeze(0)
-                mask = torch.cat([mask, new_row], axis=0)
-            # finally remove first 5 tokens from each sentence
-            mask[:, :5] -= 1
-            attention_vals *= mask  # apply the mask
+                sent_scores = []
+                word_score = 0
+                for a_idx, attention_val in enumerate(sentence):
+                    word = token_list[input_ids[s_idx, a_idx]]
+                    # print(f'word: {word} with attn val {attention_val}')
+                    if word not in ['[CLS]', '$', '##ST', '##AR', '##T', '[PAD]']:
+                        if word == '[SEP]':
+                            # sentence over
+                            sent_scores.append(word_score)
+                            # print('End of sentence')
+                        else:
+                            if word.startswith('##'):
+                                # add to previous word
+                                word_score += attention_val
+                                # print(f'starts with ##, append to previous, current word score {word_score}')
+                            elif word_score > 0:
+                                sent_scores.append(word_score)
+                                # print(f'end previous word with score {word_score}\n')
+                                word_score = attention_val
+                            else:
+                                # first word in sentence
+                                word_score += attention_val
+                                # print('first word in sentence')
+                print('original sentence: ', orig_batch[s_idx])
+                b = np.argmax(sent_scores)
+                print('idx of best:', b, '=', orig_batch[s_idx][b])
+                max_idxs.append(np.argmax(sent_scores))
 
-            # find token with max attention
-            imp_token_index = attention_vals.argmax(axis=1)
-            #extract id of token deemed important
-            imp_tokens_id = input_ids.gather(1, imp_token_index.view(-1, 1))
-            #get corresponding token using id
-            token_list = list(self.indexers[0]['bert'].vocab.keys()) #ordered dict keys->list, okay to index in to
-            imp_tokens = [token_list[idx] for idx in imp_tokens_id]
-            #input id and token ,pairs
-            #probably need both the index in input sentence and the word
-            batch_imp_tokens.append(imp_tokens)
-        return batch_imp_tokens
+        return max_idxs
+
+        #     # now make a mask to remove unwanted tokens
+        #     # first count number of non-padding tokens
+        #     nonzeros = attention_vals.count_nonzero(dim=1) - 1  # count non-zeros
+        #     n_ones = nonzeros[0]
+        #     ncols = attention_vals.shape[1]
+        #     # now create a mask to eventually zero out unwanted tokens
+        #     # start by zeroing out padding and last token in sentence
+        #     mask = torch.repeat_interleave(torch.tensor([1, 0]), torch.tensor([n_ones, ncols - n_ones]), dim=None).unsqueeze(0)
+        #     # loop through rows appending appropriate mask for each row
+        #     for i, n_ones in enumerate(nonzeros[1:]):
+        #         new_row = torch.repeat_interleave(torch.tensor([1, 0]), torch.tensor([n_ones, ncols - n_ones]), dim=None).unsqueeze(0)
+        #         mask = torch.cat([mask, new_row], axis=0)
+        #     # finally remove first 5 tokens from each sentence
+        #     mask[:, :5] -= 1
+        #     attention_vals *= mask  # apply the mask
+        #
+        #     # find token with max attention
+        #     imp_token_index = attention_vals.argmax(axis=1)
+        #     #extract id of token deemed important
+        #     imp_tokens_id = input_ids.gather(1, imp_token_index.view(-1, 1))
+        #     # given these id's we wish to find the original sentence id and return that
+        #     # issue: have to deal with duplicates
+        #     # bool if imp token is repeated in each sentence
+        #     duplicate_seqs = torch.sum(input_ids == imp_tokens_id, axis=1) > 1
+        #     # loop through duplicates and recover
+        #     for idx, dup in enumerate(duplicate_seqs):
+        #         if dup == True:
+        #             # do something to deal with dups
+        #             pass
+        #     # we have the index in the bert embedded sentence
+        #
+        #     #get corresponding token using id
+        #     token_list = list(self.indexers[0]['bert'].vocab.keys()) #ordered dict keys->list, okay to index in to
+        #     imp_tokens = [token_list[idx] for idx in imp_tokens_id]
+        #     #input id and token ,pairs
+        #     #probably need both the index in input sentence and the word
+        #     batch_imp_tokens.append(imp_tokens)
+        # return batch_imp_tokens
