@@ -7,10 +7,11 @@ import nodebox_linguistics_extended as nle
 # Used for obtaining POS tags.
 nlp = spacy.load("en_core_web_sm", disable=["ner", "lemmatizer"])
 # Pronoun lists #
-SBJ_PRONOUNS = {"i", "you", "he", "she", "it", "we", "you", "they"}
-OBJ_PRONOUNS = {"me", "you", "him", "her", "it", "us", "you", "them"}
-POS_PRONOUNS = {"mine", "yours", "his", "hers", "ours", "yours", "theirs"}
-REF_PRONOUNS = {"myself", "yourself", "himself", "herself", "itself", "ourselves", "yourselves", "themselves"}
+SBJ_PRONOUNS = ["i", "you", "he", "she", "it", "we", "you", "they"]
+OBJ_PRONOUNS = ["me", "you", "him", "her", "it", "us", "you", "them"]
+POS_PRONOUNS = ["mine", "yours", "his", "hers", "its", "ours", "yours", "theirs"]
+REF_PRONOUNS = ["myself", "yourself", "himself", "herself", "itself", "ourselves", "yourselves", "themselves"]
+SBJ_SET, OBJ_SET, POS_SET, REF_SET = set(SBJ_PRONOUNS), set(OBJ_PRONOUNS), set(POS_PRONOUNS), set(REF_PRONOUNS)
 COMPLEMENT_PRONOUNS = {0: [OBJ_PRONOUNS, POS_PRONOUNS, REF_PRONOUNS],
                        1: [SBJ_PRONOUNS, POS_PRONOUNS, REF_PRONOUNS],
                        2: [SBJ_PRONOUNS, OBJ_PRONOUNS, REF_PRONOUNS],
@@ -114,26 +115,34 @@ def perturb_adverb(token: spacy.tokens.token.Token) -> str:
 def perturb_pronoun(token: spacy.tokens.token.Token) -> str:
     # Randomly pick a pronoun from a different pronoun type.
     pronoun = token.text.lower()
-    if pronoun in SBJ_PRONOUNS:
+    if pronoun in SBJ_SET:
         pronoun_category = 0
-    elif pronoun in OBJ_PRONOUNS:
+        index = SBJ_PRONOUNS.index(pronoun)
+    elif pronoun in OBJ_SET:
         pronoun_category = 1
-    elif pronoun in POS_PRONOUNS:
+        index = OBJ_PRONOUNS.index(pronoun)
+    elif pronoun in POS_SET:
         pronoun_category = 2
-    elif pronoun in REF_PRONOUNS:
+        index = POS_PRONOUNS.index(pronoun)
+    elif pronoun in REF_SET:
         pronoun_category = 3
+        index = REF_PRONOUNS.index(pronoun)
     else:
         # Error handling.
         return token.text
     # Randomly pick one of the three complement categories.
     sample_category = np.random.randint(3)
-    # Randomly pick one of the forms in this category.
-    return random.sample(COMPLEMENT_PRONOUNS[pronoun_category][sample_category], 1)[0]
+    if np.random.uniform() < 0.1:
+        # Randomly pick one of the forms in this category (in 10% of cases).
+        return random.sample(COMPLEMENT_PRONOUNS[pronoun_category][sample_category], 1)[0]
+    else:
+        # Pick the corresponding pronoun from another category (in 90% of cases).
+        return COMPLEMENT_PRONOUNS[pronoun_category][sample_category][index]
 
 
 def perturb(token: spacy.tokens.token.Token) -> str:
     # Perturb word by removing token or replacing it with UNK symbol.
-    if np.random.uniform < 0.5:
+    if np.random.uniform() < 0.5:
         # Delete token.
         return ""
     else:
