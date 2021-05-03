@@ -316,9 +316,8 @@ class GecBERTModel(object):
     def extract_candidate_words(self, full_batch: List[str], layer: int = 0) -> List[int]:
         # Adapting the handle batch and predict methods in order to extract attention weights.
         final_batch = full_batch[:]
-        short_ids = [i for i in range(len(full_batch))
-                     if len(full_batch[i]) < self.min_len]
-        pred_ids = [i for i in range(len(full_batch)) if i not in short_ids]
+        # Ignore inputs that are too short.
+        pred_ids = [i for i in range(len(full_batch)) if len(full_batch[i]) >= self.min_len]
 
         # Assuming one iteration for now... TBD what we will do here
         orig_batch = [final_batch[i] for i in pred_ids]
@@ -341,11 +340,6 @@ class GecBERTModel(object):
             attention_vals = torch.sum(layer_aggr_attn, axis=1)
             max_idxs = []
             for s_idx, sentence in enumerate(attention_vals):
-                # for debugging
-                bert_sen = [token_list[idx] for idx in input_ids[s_idx]]
-                print('bert sentence:', bert_sen)
-                print('sentence attn vals:', sentence)
-
                 sent_scores = []
                 word_score = 0
                 for a_idx, attention_val in enumerate(sentence):
@@ -365,8 +359,5 @@ class GecBERTModel(object):
                             else:
                                 # First word in sentence.
                                 word_score += attention_val
-                print('original sentence: ', orig_batch[s_idx])
-                b = np.argmax(sent_scores)
-                print('idx of best:', b, '=', orig_batch[s_idx][b])
                 max_idxs.append(np.argmax(sent_scores))
         return max_idxs
