@@ -1,8 +1,10 @@
 import spacy
 import random
 import numpy as np
+from typing import Tuple, Set
 # https://www.nodebox.net/code/index.php/Linguistics.html
 import nodebox_linguistics_extended as nle
+from nltk.corpus import wordnet as wn
 
 # Used for obtaining POS tags.
 nlp = spacy.load("en_core_web_sm", disable=["ner", "lemmatizer"])
@@ -24,18 +26,20 @@ VERB_TENSES = {'present plural': 0, '1st singular present': 0, '2nd singular pre
 # --- --- #
 
 
-def find_word_perturbation(sentence: str, target_idx: int) -> str:
+def find_word_perturbation(sentence: str, label: str, target_idx: int) -> Tuple[str, str]:
+    # Obtain pos tags and target token.
     doc = nlp(sentence)
     target_token = doc[target_idx]
+    # Perturb input depending on the target token's pos tag.
     pos = target_token.pos_
     if pos == "NOUN":
         perturbation = perturb_noun(target_token)
     elif pos == "VERB":
         perturbation = perturb_verb(target_token)
     elif pos == "ADJ":
-        perturbation = perturb_adjective(target_token)
+        perturbation, label = perturb_adjective(target_token, label)
     elif pos == "ADV":
-        perturbation = perturb_adverb(target_token)
+        perturbation, label = perturb_adverb(target_token, label)
     elif pos == "PRON":
         perturbation = perturb_pronoun(target_token)
     elif pos == "NUM" or pos == "PROPN":
@@ -47,7 +51,8 @@ def find_word_perturbation(sentence: str, target_idx: int) -> str:
     else:
         # Delete or UNK.
         perturbation = perturb(target_token)
-    return doc.text.replace(target_token.text, perturbation)
+    # Return perturbed input and its label.
+    return doc.text.replace(target_token.text, perturbation), label
 
 
 def perturb_noun(token: spacy.tokens.token.Token) -> str:
@@ -88,28 +93,34 @@ def perturb_verb(token: spacy.tokens.token.Token) -> str:
         return nle.verb.infinitive(token.text)
 
 
-def perturb_adjective(token: spacy.tokens.token.Token) -> str:
+def perturb_adjective(token: spacy.tokens.token.Token, label: str) -> Tuple[str, str]:
+    text = replace_by_synonym(token)
+    # Change label accordingly if token is changed for a synonym.
+    label = label.replace(token.text, text)
     # Convert adjective to adverb. Ignoring irregular cases.
-    if token.text[-1] == "y":
-        return f"{token.text[:-1]}ily"
-    elif token.text[-4:] == "able" or token.text[-4:] == "ible" or token.text[-2:] == "le":
-        return f"{token.text[:-1]}y"
-    elif token.text[-2:] == "ic":
-        return f"{token.text}ally"
+    if text.endswith("y"):
+        return f"{text[:-1]}ily", label
+    elif text.endswith("able") or text.endswith("ible") or text.endswith("le"):
+        return f"{text[:-1]}y", label
+    elif text.endswith("ic"):
+        return f"{text}ally", label
     else:
-        return f"{token.text}ly"
+        return f"{text}ly", label
 
 
-def perturb_adverb(token: spacy.tokens.token.Token) -> str:
+def perturb_adverb(token: spacy.tokens.token.Token, label: str) -> Tuple[str, str]:
+    text = replace_by_synonym(token)
+    # Change label accordingly if token is changed for a synonym.
+    label = label.replace(token.text, text)
     # Convert adverb to adjective. Ignoring irregular cases.
-    if token.text[-3:] == "ily":
-        return f"{token.text[:-3]}y"
-    elif token.text[-3:] == "bly":
-        return f"{token.text[:-1]}e"
-    elif token.text[-6:] == "ically":
-        return token.text[:-4]
+    if text.endswith("ily"):
+        return f"{text[:-3]}y", label
+    elif text.endswith("bly"):
+        return f"{text[:-1]}e", label
+    elif text.endswith("ically"):
+        return text[:-4], label
     else:
-        return token.text[:-2]
+        return text[:-2], label
 
 
 def perturb_pronoun(token: spacy.tokens.token.Token) -> str:
@@ -147,3 +158,37 @@ def perturb(token: spacy.tokens.token.Token) -> str:
         return ""
     else:
         return "<UNK>"
+
+
+def replace_by_synonym(token: spacy.tokens.token.Token) -> str:
+    # With 50% chance replace token by a random synonym.
+    if np.random.uniform() < 0.5:
+        return random.sample(get_synonyms(token), 1)[0]
+    return token.text
+
+
+def get_synonyms(token: spacy.tokens.token.Token) -> Set[str]:
+    # Returns a set containing all synonyms over all synsets for the given token.
+    synsets = wn.synsets(token.text, pos=spacy_tag_to_wordnet(token))
+    synonyms = set()
+    for sn in synsets:
+        synonyms.update(sn.lemma_names())
+    return synonyms
+
+
+def spacy_tag_to_wordnet(token: spacy.tokens.token.Token) -> str:
+    # Maps spacy tokens to POS tags used in wordnet.
+    if token.tag_ in {"JJ", "JJR", "JJS"}:
+        # Adjectives.
+        return "a"
+    elif token.tag_ in {"NN", "NNS"}:
+        # Nouns.
+        return "n"
+    elif token.tag_ in {"RB", "RBR", "RBS"}:
+        # Adverbs.
+        return "r"
+    elif token.tag_ in {"VB", "VBD", "VBG", "VBN", "VBP", "VBZ"}:
+        # Verbs.
+        return "v"
+    else:
+        raise ValueError(f"Invalid POS tag: {token.tag_}")
