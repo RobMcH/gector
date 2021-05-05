@@ -313,7 +313,21 @@ class GecBERTModel(object):
 
         return final_batch, total_updates
 
-    def extract_candidate_words(self, full_batch: List[str], layer: int = 0) -> List[int]:
+    def extract_candidate_words(self, full_batch: List[str], layer: int = 0, n: int = 1) -> List[List[int]]:
+        """
+        Extract words from a sentence based on bert attention scores.
+
+        Args:
+             full_batch (List(str)):
+             layer (int):
+             n (int): Number of words to extract from a given sentence.
+
+        Returns:
+            list of lists containing the indexes of the words with the top n attention scores in
+            reverse order. Each sentence results in list of size n sorted in reverse order (i.e.
+            [..., 2nd largest idx, largest idx]) and this function returns a list containing one
+            such list for each sentence.
+        """
         # Adapting the handle batch and predict methods in order to extract attention weights.
         final_batch = full_batch[:]
         short_ids = [i for i in range(len(full_batch))
@@ -334,7 +348,7 @@ class GecBERTModel(object):
             layer_attn = attention_outputs[layer]  # shape = (2,12,10,10)
             # Sum over multi heads
             layer_aggr_attn = torch.sum(layer_attn, axis=1)  # aggregate heads
-            # layer_aggr_attn =layer_attn[:,4,:,:]  # or pick a particular head
+            # layer_aggr_attn = layer_attn[:,4,:,:]  # or pick a particular head
             # now shape is (2,10,10)
             # sum attention weights for each input token
             token_list = list(self.indexers[0]['bert'].vocab.keys())
@@ -366,7 +380,8 @@ class GecBERTModel(object):
                                 # First word in sentence.
                                 word_score += attention_val
                 print('original sentence: ', orig_batch[s_idx])
-                b = np.argmax(sent_scores)
-                print('idx of best:', b, '=', orig_batch[s_idx][b])
-                max_idxs.append(np.argmax(sent_scores))
+                # b = np.argmax(sent_scores)
+                # print('idx of best:', b, '=', orig_batch[s_idx][b])
+                sent_max_n_idxs = np.argsort(sent_scores)[-n:].tolist()
+                max_idxs.append(sent_max_n_idxs)
         return max_idxs
