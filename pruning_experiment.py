@@ -67,9 +67,6 @@ if __name__ == '__main__':
     parser.add_argument('--input_file',
                         help='Path to the evalset file',
                         required=True)
-    parser.add_argument('--output_file',
-                        help='Path to the output file',
-                        required=True)
     parser.add_argument('--max_len',
                         type=int,
                         help='The max sentence length'
