@@ -313,7 +313,8 @@ class GecBERTModel(object):
 
         return final_batch, total_updates
 
-    def extract_candidate_words(self, full_batch: List[str], layer: int = 0, n: int = 1) -> List[List[int]]:
+    def extract_candidate_words(self, full_batch: List[str], layer: int = 0,
+                                n: int = 1, aggregation: str = 'sum') -> List[List[int]]:
         """
         Extract words from a sentence based on bert attention scores.
 
@@ -321,6 +322,10 @@ class GecBERTModel(object):
              full_batch (List(str)):
              layer (int):
              n (int): Number of words to extract from a given sentence.
+             aggregation (str): Method for merging tokens attention values back into a single
+                word attention score (for words that have been split by berts token embedding).
+                'sum' adds the tokens together, 'max' selects the maximum, 'mean' takes the
+                average.
 
         Returns:
             list of lists containing the indexes of the words with the top n attention scores in
@@ -362,6 +367,7 @@ class GecBERTModel(object):
 
                 sent_scores = []
                 word_score = 0
+                token_count = 0  # only used by mean aggregation
                 for a_idx, attention_val in enumerate(sentence):
                     word = token_list[input_ids[s_idx, a_idx]]
                     attention_val = attention_val.item()
@@ -371,17 +377,30 @@ class GecBERTModel(object):
                             sent_scores.append(word_score)
                         else:
                             if word.startswith('##'):
-                                # Add to previous word.
-                                word_score += attention_val
+                                if aggregation == 'sum':
+                                    # Add to previous token
+                                    word_score += attention_val
+                                elif aggregation == 'max':
+                                    # set to current value if its bigger than current max
+                                    word_score = max([word_score, attention_val])
+                                elif aggregation == 'mean':
+                                    # take the average of the tokens scores
+                                    token_count += 1
+                                    word_score += (attention_val - word_score)/token_count
+                                else:
+                                    raise ValueError(f'{aggregation} not a valid aggregation method')
                             elif word_score > 0:
                                 sent_scores.append(word_score)
                                 word_score = attention_val
+                                token_count = 1
                             else:
                                 # First word in sentence.
                                 word_score += attention_val
+                                token_count += 1
                 print('original sentence: ', orig_batch[s_idx])
                 # b = np.argmax(sent_scores)
-                # print('idx of best:', b, '=', orig_batch[s_idx][b])
                 sent_max_n_idxs = np.argsort(sent_scores)[-n:].tolist()
+                # for debugging
+                # print('idx of best:', sent_max_n_idxs[0], '=', orig_batch[s_idx][sent_max_n_idxs[0]])
                 max_idxs.append(sent_max_n_idxs)
         return max_idxs
