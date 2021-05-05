@@ -63,6 +63,7 @@ class GecBERTModel(object):
                  min_error_probability=0.0,
                  confidence=0,
                  resolve_cycles=False,
+                 heads_to_prune=None
                  ):
         self.model_weights = list(map(float, weigths)) if weigths else [1] * len(model_paths)
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -79,9 +80,10 @@ class GecBERTModel(object):
         self.model_name = model_name
         self.special_tokens_fix = special_tokens_fix
         # set training parameters and operations
-
         self.indexers = []
         self.models = []
+        #heads we would like to prune
+        self.heads_to_prune = heads_to_prune
         for model_path in model_paths:
             if is_ensemble:
                 model_name, special_tokens_fix = self._get_model_data(model_path)
@@ -96,6 +98,9 @@ class GecBERTModel(object):
             else:
                 model.load_state_dict(torch.load(model_path,
                                                  map_location=torch.device('cpu')))
+
+            if self.heads_to_prune is not None:
+                model.text_field_embedder.token_embedder_bert.bert_model.prune_heads(self.heads_to_prune)
             model.eval()
             self.models.append(model)
 
@@ -178,6 +183,7 @@ class GecBERTModel(object):
             top_layer_only=True,
             special_tokens_fix=special_tokens_fix)
         }
+
         text_field_embedder = BasicTextFieldEmbedder(
             token_embedders=embedders,
             embedder_to_indexer_map={"bert": ["bert", "bert-offsets"]},
