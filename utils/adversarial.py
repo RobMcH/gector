@@ -29,7 +29,10 @@ VERB_TENSES = {'present plural': 0, '1st singular present': 0, '2nd singular pre
 def find_word_perturbation(sentence: str, label: str, target_idx: int) -> Tuple[str, str]:
     # Obtain pos tags and target token.
     doc = nlp(sentence)
-    target_token = doc[target_idx]
+    try:
+        target_token = doc[target_idx]
+    except:
+        print(sentence, target_idx, doc)
     # Perturb input depending on the target token's pos tag.
     pos = target_token.pos_
     if pos == "NOUN":
@@ -170,7 +173,7 @@ def replace_by_synonym(token: spacy.tokens.token.Token) -> str:
 def get_synonyms(token: spacy.tokens.token.Token) -> Set[str]:
     # Returns a set containing all synonyms over all synsets for the given token.
     synsets = wn.synsets(token.text, pos=spacy_tag_to_wordnet(token))
-    synonyms = set()
+    synonyms = set(token.text)
     for sn in synsets:
         synonyms.update(sn.lemma_names())
     return synonyms
@@ -184,7 +187,7 @@ def spacy_tag_to_wordnet(token: spacy.tokens.token.Token) -> str:
     elif token.tag_ in {"NN", "NNS"}:
         # Nouns.
         return "n"
-    elif token.tag_ in {"RB", "RBR", "RBS"}:
+    elif token.tag_ in {"RB", "RBR", "RBS", "WRB"}:
         # Adverbs.
         return "r"
     elif token.tag_ in {"VB", "VBD", "VBG", "VBN", "VBP", "VBZ"}:

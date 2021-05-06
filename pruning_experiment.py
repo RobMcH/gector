@@ -1,77 +1,64 @@
 import argparse
-import numpy as np
-from tqdm import tqdm
+
 from utils.helpers import read_lines
 from gector.gec_model import GecBERTModel
-import utils.adversarial as adv
 
 
-def perturbations_for_file(input_file: str, label_file: str, model: GecBERTModel, batch_size: int = 32):
+def predict_for_file(input_file, output_file, model, batch_size=32):
     test_data = read_lines(input_file)
-    lengths = []
-    batch_extracted_words = []
+    predictions = []
+    cnt_corrections = 0
     batch = []
-    # Extract attention scores for inputs.
-    for sent in tqdm(test_data):
-        split = sent.split()
-        lengths.append(len(split))
-        batch.append(split)
+    for sent in test_data:
+        batch.append(sent.split())
         if len(batch) == batch_size:
-            extracted_words = model.extract_candidate_words(batch)
-            batch_extracted_words.extend(extracted_words)
+            preds, cnt = model.handle_batch(batch)
+            predictions.extend(preds)
+            cnt_corrections += cnt
             batch = []
     if batch:
-        extracted_words = model.extract_candidate_words(batch)
-        batch_extracted_words.extend(extracted_words)
-    lengths = np.array(lengths)
-    labels = read_lines(label_file)
-    # Generate perturbed outputs.
-    perturbations, perturbation_labels = [], []
-    indices = np.where(lengths >= model.min_len)[0]
-    for j, i in tqdm(enumerate(indices), total=indices.size):
-        perturbation, label = adv.find_word_perturbation(test_data[i], labels[i], batch_extracted_words[j])
-        # If perturbation equals input, ignore it.
-        if perturbation == test_data[i]:
-            continue
-        perturbations.append(perturbation)
-        perturbation_labels.append(label)
-    # Each item in perturbed_batch is of form (perturbed_input, label).
-    return perturbations, perturbation_labels
+        preds, cnt = model.handle_batch(batch)
+        predictions.extend(preds)
+        cnt_corrections += cnt
+
+    with open(output_file, 'w') as f:
+        f.write("\n".join([" ".join(x) for x in predictions]) + '\n')
+    return cnt_corrections
 
 
 def main(args):
-    # get all paths
-    model = GecBERTModel(vocab_path=args.vocab_path,
-                         model_paths=args.model_path,
-                         max_len=args.max_len, min_len=args.min_len,
-                         iterations=args.iteration_count,
-                         min_error_probability=args.min_error_probability,
-                         lowercase_tokens=args.lowercase_tokens,
-                         model_name=args.transformer_model,
-                         special_tokens_fix=args.special_tokens_fix,
-                         log=False,
-                         confidence=args.additional_confidence,
-                         is_ensemble=args.is_ensemble,
-                         weigths=args.weights)
-    perturbations, perturbation_labels = perturbations_for_file(args.input_file, args.output_file, model,
-                                                                batch_size=args.batch_size)
-    # Write to file.
-    with open("perturbed_inputs.txt", "w") as f:
-        for perturbation in perturbations:
-            f.write(perturbation + "\n")
-    with open("perturbation_labels.text", "w") as f:
-        for label in perturbation_labels:
-            f.write(label + "\n")
+    for i in range(12):  # iterate over 12 heads
+        head_ids = [j for j in range(12)]
+        head_ids.remove(i)  # only keep the ith head
+        heads_to_prune = {0: head_ids}
+        # output file to store pruned model predictions
+        output_file = f"test_cases/output_head_{i}.txt"
+        model = GecBERTModel(vocab_path=args.vocab_path,
+                             model_paths=args.model_path,
+                             max_len=args.max_len, min_len=args.min_len,
+                             iterations=args.iteration_count,
+                             min_error_probability=args.min_error_probability,
+                             lowercase_tokens=args.lowercase_tokens,
+                             model_name=args.transformer_model,
+                             special_tokens_fix=args.special_tokens_fix,
+                             log=False,
+                             confidence=args.additional_confidence,
+                             is_ensemble=args.is_ensemble,
+                             weigths=args.weights,
+                             heads_to_prune=heads_to_prune
+                             )
+
+        cnt_corrections = predict_for_file(args.input_file, output_file, model,
+                                           batch_size=args.batch_size)
+    # evaluate with m2 or ERRANT
+    print(f"Produced overall corrections: {cnt_corrections}")
 
 
 if __name__ == '__main__':
-
     # read parameters
     parser = argparse.ArgumentParser()
     parser.add_argument('--model_path',
-                        help='Path to the model file.',
-                        default='models/bert_0_gector.th',
-                        nargs='+',
+                        help='Path to the model file.', nargs='+',
                         required=True)
     parser.add_argument('--vocab_path',
                         help='Path to the model file.',
@@ -79,11 +66,6 @@ if __name__ == '__main__':
                         )
     parser.add_argument('--input_file',
                         help='Path to the evalset file',
-                        default='test_cases/input_test.txt',
-                        required=True)
-    parser.add_argument('--output_file',
-                        help='Path to the output file',
-                        default='test_cases/output_test.txt',
                         required=True)
     parser.add_argument('--max_len',
                         type=int,

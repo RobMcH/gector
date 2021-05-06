@@ -65,6 +65,7 @@ class GecBERTModel(object):
                  min_error_probability=0.0,
                  confidence=0,
                  resolve_cycles=False,
+                 heads_to_prune=None
                  ):
         self.model_weights = list(map(float, weigths)) if weigths else [1] * len(model_paths)
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -81,9 +82,10 @@ class GecBERTModel(object):
         self.model_name = model_name
         self.special_tokens_fix = special_tokens_fix
         # set training parameters and operations
-
         self.indexers = []
         self.models = []
+        #heads we would like to prune
+        self.heads_to_prune = heads_to_prune
         for model_path in model_paths:
             if is_ensemble:
                 model_name, special_tokens_fix = self._get_model_data(model_path)
@@ -98,6 +100,9 @@ class GecBERTModel(object):
             else:
                 model.load_state_dict(torch.load(model_path,
                                                  map_location=torch.device('cpu')))
+
+            if self.heads_to_prune is not None:
+                model.text_field_embedder.token_embedder_bert.bert_model.prune_heads(self.heads_to_prune)
             model.eval()
             self.models.append(model)
 
@@ -180,6 +185,7 @@ class GecBERTModel(object):
             top_layer_only=True,
             special_tokens_fix=special_tokens_fix)
         }
+
         text_field_embedder = BasicTextFieldEmbedder(
             token_embedders=embedders,
             embedder_to_indexer_map={"bert": ["bert", "bert-offsets"]},
@@ -335,9 +341,8 @@ class GecBERTModel(object):
         """
         # Adapting the handle batch and predict methods in order to extract attention weights.
         final_batch = full_batch[:]
-        short_ids = [i for i in range(len(full_batch))
-                     if len(full_batch[i]) < self.min_len]
-        pred_ids = [i for i in range(len(full_batch)) if i not in short_ids]
+        # Ignore inputs that are too short.
+        pred_ids = [i for i in range(len(full_batch)) if len(full_batch[i]) >= self.min_len]
 
         # Assuming one iteration for now... TBD what we will do here
         orig_batch = [final_batch[i] for i in pred_ids]
@@ -360,11 +365,6 @@ class GecBERTModel(object):
             attention_vals = torch.sum(layer_aggr_attn, axis=1)
             max_idxs = []
             for s_idx, sentence in enumerate(attention_vals):
-                # for debugging
-                bert_sen = [token_list[idx] for idx in input_ids[s_idx]]
-                print('bert sentence:', bert_sen)
-                print('sentence attn vals:', sentence)
-
                 sent_scores = []
                 word_score = 0
                 token_count = 0  # only used by mean aggregation
@@ -397,10 +397,7 @@ class GecBERTModel(object):
                                 # First word in sentence.
                                 word_score += attention_val
                                 token_count += 1
-                print('original sentence: ', orig_batch[s_idx])
-                # b = np.argmax(sent_scores)
                 sent_max_n_idxs = np.argsort(sent_scores)[-n:].tolist()
-                # for debugging
-                # print('idx of best:', sent_max_n_idxs[0], '=', orig_batch[s_idx][sent_max_n_idxs[0]])
                 max_idxs.append(sent_max_n_idxs)
+                max_idxs.append(np.argmax(sent_scores))
         return max_idxs
