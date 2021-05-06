@@ -18,6 +18,8 @@ def perturbations_for_file(input_file: str, label_file: str, model: GecBERTModel
         batch.append(split)
         if len(batch) == batch_size:
             extracted_words = model.extract_candidate_words(batch)
+            # Flatten list for this experiment.
+            extracted_words = [item for sublist in extracted_words for item in sublist]
             batch_extracted_words.extend(extracted_words)
             batch = []
     if batch:

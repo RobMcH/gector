@@ -399,5 +399,4 @@ class GecBERTModel(object):
                                 token_count += 1
                 sent_max_n_idxs = np.argsort(sent_scores)[-n:].tolist()
                 max_idxs.append(sent_max_n_idxs)
-                max_idxs.append(np.argmax(sent_scores))
         return max_idxs
