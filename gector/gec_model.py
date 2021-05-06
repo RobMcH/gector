@@ -319,7 +319,26 @@ class GecBERTModel(object):
 
         return final_batch, total_updates
 
-    def extract_candidate_words(self, full_batch: List[str], layer: int = 0) -> List[int]:
+    def extract_candidate_words(self, full_batch: List[str], layer: int = 0,
+                                n: int = 1, aggregation: str = 'sum') -> List[List[int]]:
+        """
+        Extract words from a sentence based on bert attention scores.
+
+        Args:
+             full_batch (List(str)):
+             layer (int):
+             n (int): Number of words to extract from a given sentence.
+             aggregation (str): Method for merging tokens attention values back into a single
+                word attention score (for words that have been split by berts token embedding).
+                'sum' adds the tokens together, 'max' selects the maximum, 'mean' takes the
+                average.
+
+        Returns:
+            list of lists containing the indexes of the words with the top n attention scores in
+            reverse order. Each sentence results in list of size n sorted in reverse order (i.e.
+            [..., 2nd largest idx, largest idx]) and this function returns a list containing one
+            such list for each sentence.
+        """
         # Adapting the handle batch and predict methods in order to extract attention weights.
         final_batch = full_batch[:]
         # Ignore inputs that are too short.
@@ -339,7 +358,7 @@ class GecBERTModel(object):
             layer_attn = attention_outputs[layer]  # shape = (2,12,10,10)
             # Sum over multi heads
             layer_aggr_attn = torch.sum(layer_attn, axis=1)  # aggregate heads
-            # layer_aggr_attn =layer_attn[:,4,:,:]  # or pick a particular head
+            # layer_aggr_attn = layer_attn[:,4,:,:]  # or pick a particular head
             # now shape is (2,10,10)
             # sum attention weights for each input token
             token_list = list(self.indexers[0]['bert'].vocab.keys())
@@ -348,6 +367,7 @@ class GecBERTModel(object):
             for s_idx, sentence in enumerate(attention_vals):
                 sent_scores = []
                 word_score = 0
+                token_count = 0  # only used by mean aggregation
                 for a_idx, attention_val in enumerate(sentence):
                     word = token_list[input_ids[s_idx, a_idx]]
                     attention_val = attention_val.item()
@@ -357,13 +377,27 @@ class GecBERTModel(object):
                             sent_scores.append(word_score)
                         else:
                             if word.startswith('##'):
-                                # Add to previous word.
-                                word_score += attention_val
+                                if aggregation == 'sum':
+                                    # Add to previous token
+                                    word_score += attention_val
+                                elif aggregation == 'max':
+                                    # set to current value if its bigger than current max
+                                    word_score = max([word_score, attention_val])
+                                elif aggregation == 'mean':
+                                    # take the average of the tokens scores
+                                    token_count += 1
+                                    word_score += (attention_val - word_score)/token_count
+                                else:
+                                    raise ValueError(f'{aggregation} not a valid aggregation method')
                             elif word_score > 0:
                                 sent_scores.append(word_score)
                                 word_score = attention_val
+                                token_count = 1
                             else:
                                 # First word in sentence.
                                 word_score += attention_val
+                                token_count += 1
+                sent_max_n_idxs = np.argsort(sent_scores)[-n:].tolist()
+                max_idxs.append(sent_max_n_idxs)
                 max_idxs.append(np.argmax(sent_scores))
         return max_idxs
