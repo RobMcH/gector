@@ -24,6 +24,7 @@ def attention_for_file(input_file: str, model: GecBERTModel, batch_size: int = 3
             batch = []
     if batch:
         extracted_words = model.extract_candidate_words(batch)
+        extracted_words = [item for sublist in extracted_words for item in sublist]
         batch_extracted_words.extend(extracted_words)
     return np.array(lengths), batch_extracted_words
 
@@ -85,7 +86,7 @@ def main(args):
     with open(f"{args.attack}_perturbed_inputs.txt", "w") as f:
         for perturbation in perturbations:
             f.write(perturbation + "\n")
-    with open(f"{args.attack}_perturbation_labels.text", "w") as f:
+    with open(f"{args.attack}_perturbation_labels.txt", "w") as f:
         for label in perturbation_labels:
             f.write(label + "\n")
 
