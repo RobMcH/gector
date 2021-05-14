@@ -2,7 +2,7 @@ import spacy
 import random
 import numpy as np
 from typing import Tuple, Set
-# https://www.nodebox.net/code/index.php/Linguistics.html
+# Docs: https://www.nodebox.net/code/index.php/Linguistics.html. Install via requirements.txt.
 import nodebox_linguistics_extended as nle
 from nltk.corpus import wordnet as wn
 
@@ -26,13 +26,17 @@ VERB_TENSES = {'present plural': 0, '1st singular present': 0, '2nd singular pre
 # --- --- #
 
 
+def random_perturbation(sentence: str, label: str) -> Tuple[str, str]:
+    # Choose a random index w.r.t. the spacy tokenisation.
+    idx = np.random.randint(0, len(nlp(sentence)))
+    # Perturb sentence according to rules.
+    return find_word_perturbation(sentence, label, idx)
+
+
 def find_word_perturbation(sentence: str, label: str, target_idx: int) -> Tuple[str, str]:
     # Obtain pos tags and target token.
     doc = nlp(sentence)
-    try:
-        target_token = doc[target_idx]
-    except:
-        print(sentence, target_idx, doc)
+    target_token = doc[target_idx]
     # Perturb input depending on the target token's pos tag.
     pos = target_token.pos_
     if pos == "NOUN":
