@@ -320,7 +320,7 @@ class GecBERTModel(object):
         return final_batch, total_updates
 
     def extract_candidate_words(self, full_batch: List[str], layer: int = 0,
-                                n: int = 1, aggregation: str = 'sum') -> List[List[int]]:
+                                n: int = 1, aggregation: str = 'sum', head_aggregation: str = 'sum') -> List[List[int]]:
         """
         Extract words from a sentence based on bert attention scores.
 
@@ -357,7 +357,12 @@ class GecBERTModel(object):
             # Take out attention matrices for layer of interest
             layer_attn = attention_outputs[layer]  # shape = (2,12,10,10)
             # Sum over multi heads
-            layer_aggr_attn = torch.sum(layer_attn, axis=1)  # aggregate heads
+            if head_aggregation == 'sum':
+                layer_aggr_attn = torch.sum(layer_attn, axis=1)  # aggregate heads
+            elif head_aggregation == 'prod':
+                layer_aggr_attn = torch.prod(layer_attn, axis=1)
+            else:
+                raise ValueError("Head aggregation either needs to be sum or prod.")
             # layer_aggr_attn = layer_attn[:,4,:,:]  # or pick a particular head
             # now shape is (2,10,10)
             # sum attention weights for each input token

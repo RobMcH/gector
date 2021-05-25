@@ -5,6 +5,7 @@ from typing import Tuple, Set
 # Docs: https://www.nodebox.net/code/index.php/Linguistics.html. Install via requirements.txt.
 import nodebox_linguistics_extended as nle
 from nltk.corpus import wordnet as wn
+from utils.helpers import UNK, find
 
 # Used for obtaining POS tags.
 nlp = spacy.load("en_core_web_sm", disable=["ner", "lemmatizer"])
@@ -23,6 +24,8 @@ COMPLEMENT_PRONOUNS = {0: [OBJ_PRONOUNS, POS_PRONOUNS, REF_PRONOUNS],
 VERB_TENSES = {'present plural': 0, '1st singular present': 0, '2nd singular present': 0, 'present participle': 1,
                'past': 2, 'past plural': 2, '1st singular past': 2, '2nd singular past': 2, '3rd singular past': 2,
                'past participle': 3, '3rd singular present': 4, 'infinitive': 5}
+
+
 # --- --- #
 
 
@@ -37,6 +40,7 @@ def find_word_perturbation(sentence: str, label: str, target_idx: int) -> Tuple[
     # Obtain pos tags and target token.
     doc = nlp(sentence)
     target_token = doc[target_idx]
+    occurrence = find(doc, target_idx)
     # Perturb input depending on the target token's pos tag.
     pos = target_token.pos_
     if pos == "NOUN":
@@ -44,9 +48,9 @@ def find_word_perturbation(sentence: str, label: str, target_idx: int) -> Tuple[
     elif pos == "VERB":
         perturbation = perturb_verb(target_token)
     elif pos == "ADJ":
-        perturbation, label = perturb_adjective(target_token, label)
+        perturbation, label = perturb_adjective(target_token, occurrence, label)
     elif pos == "ADV":
-        perturbation, label = perturb_adverb(target_token, label)
+        perturbation, label = perturb_adverb(target_token, occurrence, label)
     elif pos == "PRON":
         perturbation = perturb_pronoun(target_token)
     elif pos == "NUM" or pos == "PROPN":
@@ -59,7 +63,25 @@ def find_word_perturbation(sentence: str, label: str, target_idx: int) -> Tuple[
         # Delete or UNK.
         perturbation = perturb(target_token)
     # Return perturbed input and its label.
-    return doc.text.replace(target_token.text, perturbation), label
+    return generate_output(doc, perturbation, target_idx), label
+
+
+def generate_output(doc: spacy.tokens.Doc, perturbation: str, idx: int):
+    # Replace token in input with perturbation.
+    if len(doc) > idx + 1:
+        if idx == 0:
+            return f"{perturbation} {doc[idx + 1:]}" if perturbation != "" else doc[idx + 1:].text
+        else:
+            return f"{doc[:idx]} {perturbation} {doc[idx + 1:]}" if perturbation != "" else f"{doc[:idx]} {doc[idx + 1:]}"
+    else:
+        if idx == 0:
+            return f"{perturbation}" if perturbation != "" else ""
+        else:
+            return f"{doc[:idx]} {perturbation}" if perturbation != "" else doc[:idx].text
+
+
+def generate_label(label: str, token: str, replacement: str, occurrence: int):
+    return label.replace(token, "<$$$>", occurrence).replace(token, replacement).replace("<$$$>", token)
 
 
 def perturb_noun(token: spacy.tokens.token.Token) -> str:
@@ -100,10 +122,10 @@ def perturb_verb(token: spacy.tokens.token.Token) -> str:
         return nle.verb.infinitive(token.text)
 
 
-def perturb_adjective(token: spacy.tokens.token.Token, label: str) -> Tuple[str, str]:
+def perturb_adjective(token: spacy.tokens.token.Token, occurrence: int, label: str) -> Tuple[str, str]:
     text = replace_by_synonym(token)
     # Change label accordingly if token is changed for a synonym.
-    label = label.replace(token.text, text)
+    label = generate_label(label, token.text, text, occurrence)
     # Convert adjective to adverb. Ignoring irregular cases.
     if text.endswith("y"):
         return f"{text[:-1]}ily", label
@@ -115,10 +137,10 @@ def perturb_adjective(token: spacy.tokens.token.Token, label: str) -> Tuple[str,
         return f"{text}ly", label
 
 
-def perturb_adverb(token: spacy.tokens.token.Token, label: str) -> Tuple[str, str]:
+def perturb_adverb(token: spacy.tokens.token.Token, occurrence: int, label: str) -> Tuple[str, str]:
     text = replace_by_synonym(token)
     # Change label accordingly if token is changed for a synonym.
-    label = label.replace(token.text, text)
+    label = generate_label(label, token.text, text, occurrence)
     # Convert adverb to adjective. Ignoring irregular cases.
     if text.endswith("ily"):
         return f"{text[:-3]}y", label
@@ -164,7 +186,7 @@ def perturb(token: spacy.tokens.token.Token) -> str:
         # Delete token.
         return ""
     else:
-        return "<UNK>"
+        return UNK
 
 
 def replace_by_synonym(token: spacy.tokens.token.Token) -> str:

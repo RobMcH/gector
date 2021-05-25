@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 
+import spacy.tokens
 
 VOCAB_DIR = Path(__file__).resolve().parent.parent / "data"
 PAD = "@@PADDING@@"
@@ -110,6 +111,15 @@ def convert_using_plural(token, smart_action):
         return token[:-1]
     else:
         raise Exception(f"Unknown action type {smart_action}")
+
+
+def find(doc: spacy.tokens.Doc, idx: int):
+    word = doc[idx]
+    counter = 0
+    for i, token in enumerate(doc):
+        if token.text == word.text and i != idx:
+            counter += 1
+    return counter
 
 
 def apply_reverse_transformation(source_token, transform):
