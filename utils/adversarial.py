@@ -24,9 +24,18 @@ COMPLEMENT_PRONOUNS = {0: [OBJ_PRONOUNS, POS_PRONOUNS, REF_PRONOUNS],
 VERB_TENSES = {'present plural': 0, '1st singular present': 0, '2nd singular present': 0, 'present participle': 1,
                'past': 2, 'past plural': 2, '1st singular past': 2, '2nd singular past': 2, '3rd singular past': 2,
                'past participle': 3, '3rd singular present': 4, 'infinitive': 5}
+# --- --- #
+# Prepositions #
+PREP = ["with", "at", "to", "from", "into", "against", "of", "in", "for", "on", "by", "about", "like", "over", "after",
+        "since", "off"]
+# --- --- #
+# Auxiliaries #
+AUX = ["be", "can", "could", "dare", "do", "have", "may", "might", "must", "need", "ought", "shall", "should",
+       "will", "would"]
+AUX_REPLACEMENT = {"be", "have"}
+# --- --- #
+# Helper functions #
 
-
-# --- --- # Helper functions # --- --- #
 
 def find(doc: spacy.tokens.Doc, idx: int):
     word = doc[idx]
@@ -55,14 +64,18 @@ def find_word_perturbation(sentence: str, label: str, target_idx: int) -> Tuple[
     pos = target_token.pos_
     if pos == "NOUN":
         perturbation = perturb_noun(target_token)
+    elif pos == "AUX":
+        perturbation = perturb_auxiliary(target_token)
     elif pos == "VERB":
-        perturbation = perturb_verb(target_token)
+        perturbation = perturb_verb(target_token.text)
     elif pos == "ADJ":
         perturbation, label = perturb_adjective(target_token, occurrence, label)
     elif pos == "ADV":
         perturbation, label = perturb_adverb(target_token, occurrence, label)
     elif pos == "PRON":
         perturbation = perturb_pronoun(target_token)
+    elif pos == "ADP":
+        perturbation = perturb_preposition(target_token)
     elif pos == "NUM" or pos == "PROPN":
         # Remain unchanged.
         perturbation = target_token.text
@@ -94,6 +107,18 @@ def generate_label(label: str, token: str, replacement: str, occurrence: int):
     return label.replace(token, "<$$$>", occurrence).replace(token, replacement).replace("<$$$>", token)
 
 
+def perturb_auxiliary(token: spacy.tokens.token.Token) -> str:
+    inf = nle.verb.infinitive(token.text)
+    if inf not in AUX_REPLACEMENT:
+        word = random.sample(AUX_REPLACEMENT, 1)[0]
+        return perturb_verb(word)
+    else:
+        if inf == "be":
+            return perturb_verb("have")
+        else:
+            return perturb_verb("be")
+
+
 def perturb_noun(token: spacy.tokens.token.Token) -> str:
     # Change singular nouns to plural nouns and vice versa.
     if token.tag_ == "NNS":
@@ -104,32 +129,32 @@ def perturb_noun(token: spacy.tokens.token.Token) -> str:
         return nle.noun.plural(token.text)
 
 
-def perturb_verb(token: spacy.tokens.token.Token) -> str:
+def perturb_verb(token: str) -> str:
     # Perturb verb by changing it to its present, progressive, past, perfect, 3rd person singular, or infinitive form.
     try:
-        tense = VERB_TENSES[nle.verb.tense(token.text)]
+        tense = VERB_TENSES[nle.verb.tense(token)]
     except KeyError:
         # Handle the case when the verb is unknown.
-        return token.text
+        return token
     form = np.random.choice([i for i in range(6) if i != tense])
     if form == 0:
         # Present form.
-        return nle.verb.present(token.text)
+        return nle.verb.present(token)
     elif form == 1:
         # Progressive form.
-        return nle.verb.present_participle(token.text)
+        return nle.verb.present_participle(token)
     elif form == 2:
         # Past form.
-        return nle.verb.past(token.text)
+        return nle.verb.past(token)
     elif form == 3:
         # Perfect form.
-        return nle.verb.past_participle(token.text)
+        return nle.verb.past_participle(token)
     elif form == 4:
         # 3rd person singular form.
-        return nle.verb.present(token.text, person=3)
+        return nle.verb.present(token, person=3)
     elif form == 5:
         # Infinitive.
-        return nle.verb.infinitive(token.text)
+        return nle.verb.infinitive(token)
 
 
 def perturb_adjective(token: spacy.tokens.token.Token, occurrence: int, label: str) -> Tuple[str, str]:
@@ -188,6 +213,10 @@ def perturb_pronoun(token: spacy.tokens.token.Token) -> str:
     else:
         # Pick the corresponding pronoun from another category (in 90% of cases).
         return COMPLEMENT_PRONOUNS[pronoun_category][sample_category][index]
+
+
+def perturb_preposition(token: spacy.tokens.token.Token) -> str:
+    return random.sample(PREP, 1)[0]
 
 
 def perturb(token: spacy.tokens.token.Token) -> str:
