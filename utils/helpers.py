@@ -1,5 +1,7 @@
 import os
 from pathlib import Path
+from gector.gec_model import GecBERTModel
+from utils.adversarial import nlp, random_perturbation
 
 import spacy.tokens
 
@@ -120,6 +122,16 @@ def find(doc: spacy.tokens.Doc, idx: int):
         if token.text == word.text and i != idx:
             counter += 1
     return counter
+
+
+def convert_sentence(sent: str, label: str, model: GecBERTModel, num_perturbations: int):
+    # Get the aggregated attention weights for each token, generate adversarial examples.
+    weights = model.extract_attention_weights([sent])
+    tokens = [token.text for token in nlp(sent)]
+    perturbations = []
+    for i in range(num_perturbations):
+        perturbations.append(random_perturbation(sent, label))
+    return perturbations, weights, tokens
 
 
 def apply_reverse_transformation(source_token, transform):

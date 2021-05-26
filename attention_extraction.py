@@ -32,8 +32,8 @@ def attention_for_file(input_file: str, model: GecBERTModel, acc: str, agg: str,
 def attention_perturbations(input_file: str, label_file: str, model: GecBERTModel, acc: str, agg: str,
                             batch_size: int = 32):
     # Perturb sentences according to rules by choosing a vulnerable token identified by attention scores.
-    data = read_lines(input_file)
-    labels = read_lines(label_file)
+    data = read_lines(input_file, skip_strip=True)
+    labels = read_lines(label_file, skip_strip=True)
     # Get vulnerable tokens by attention scores.
     lengths, batch_extracted_words = attention_for_file(input_file, model, acc, agg, batch_size)
     # Generate perturbed outputs.
@@ -51,8 +51,8 @@ def attention_perturbations(input_file: str, label_file: str, model: GecBERTMode
 
 def random_perturbations(input_file: str, label_file: str):
     # Perturb sentences according to rules by choosing a random token.
-    data = read_lines(input_file)
-    labels = read_lines(label_file)
+    data = read_lines(input_file, skip_strip=True)
+    labels = read_lines(label_file, skip_strip=True)
     perturbations, perturbation_labels = [], []
     for i, sent in tqdm(enumerate(data), total=len(data)):
         perturbation, label = adv.random_perturbation(sent, labels[i])
