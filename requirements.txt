@@ -5,3 +5,4 @@ transformers==2.2.2
 scikit-learn==0.20.0
 sentencepiece==0.1.91
 git+https://github.com/amitness/nodebox_linguistics_extended@master
+overrides==4.1.2
