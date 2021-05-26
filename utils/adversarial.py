@@ -5,8 +5,8 @@ from typing import Tuple, Set
 # Docs: https://www.nodebox.net/code/index.php/Linguistics.html. Install via requirements.txt.
 import nodebox_linguistics_extended as nle
 from nltk.corpus import wordnet as wn
-from utils.helpers import UNK, find
 
+UNK = "@@UNKNOWN@@"
 # Used for obtaining POS tags.
 nlp = spacy.load("en_core_web_sm", disable=["ner", "lemmatizer"])
 # Pronoun lists #
@@ -25,6 +25,16 @@ VERB_TENSES = {'present plural': 0, '1st singular present': 0, '2nd singular pre
                'past': 2, 'past plural': 2, '1st singular past': 2, '2nd singular past': 2, '3rd singular past': 2,
                'past participle': 3, '3rd singular present': 4, 'infinitive': 5}
 
+
+# --- --- # Helper functions # --- --- #
+
+def find(doc: spacy.tokens.Doc, idx: int):
+    word = doc[idx]
+    counter = 0
+    for i, token in enumerate(doc):
+        if token.text == word.text and i != idx:
+            counter += 1
+    return counter
 
 # --- --- #
 

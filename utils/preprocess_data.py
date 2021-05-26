@@ -242,7 +242,7 @@ def convert_edits_into_labels(source_tokens, all_edits):
             for operation in edit_operations:
                 new_edit = [(start, end), operation]
                 flat_edits.append(new_edit)
-        elif i§sinstance(edit_operations, str):
+        elif isinstance(edit_operations, str):
             flat_edits.append(edit)
         else:
             raise Exception("Unknown operation type")
