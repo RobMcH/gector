@@ -64,6 +64,7 @@ def random_perturbations(input_file: str, label_file: str):
 
 
 def main(args):
+
     if args.attack == 'attention':
         model = GecBERTModel(vocab_path=args.vocab_path,
                              model_paths=args.model_path,
@@ -76,12 +77,14 @@ def main(args):
                              log=False,
                              confidence=args.additional_confidence,
                              is_ensemble=args.is_ensemble,
-                             weigths=args.weights)
+                             weigths=args.weights,
+                             remove_first_layer=args.remove_first_layer)
         perturbations, perturbation_labels = attention_perturbations(args.input_file, args.output_file, model,
                                                                      args.accumulator, args.head_aggregator,
                                                                      batch_size=args.batch_size)
     elif args.attack == 'random':
         perturbations, perturbation_labels = random_perturbations(args.input_file, args.output_file)
+
     # Write to file.
     with open(f"{args.attack}_{args.accumulator}_{args.head_aggregator}_perturbed_inputs.txt", "w") as f:
         for perturbation in perturbations:
@@ -159,6 +162,10 @@ if __name__ == '__main__':
     parser.add_argument('--weights',
                         help='Used to calculate weighted average', nargs='+',
                         default=None)
+    parser.add_argument('--remove_first_layer',
+                        help='Remove first layer from transformer',
+                        dest='remove_first_layer',
+                        action='store_true')
     parser.add_argument('--attack',
                         help='Define the attack mode.',
                         choices=['attention', 'random'],

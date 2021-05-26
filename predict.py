@@ -39,7 +39,8 @@ def main(args):
                          log=False,
                          confidence=args.additional_confidence,
                          is_ensemble=args.is_ensemble,
-                         weigths=args.weights)
+                         weigths=args.weights,
+                         remove_first_layer=args.remove_first_layer)
 
     cnt_corrections = predict_for_file(args.input_file, args.output_file, model,
                                        batch_size=args.batch_size)
@@ -110,5 +111,9 @@ if __name__ == '__main__':
     parser.add_argument('--weights',
                         help='Used to calculate weighted average', nargs='+',
                         default=None)
+    parser.add_argument('--remove_first_layer',
+                        help='Remove first layer from transformer',
+                        dest='remove_first_layer',
+                        action='store_true')
     args = parser.parse_args()
     main(args)
