@@ -22,15 +22,35 @@ class PretrainedBertModel:
     _cache: Dict[str, PreTrainedModel] = {}
 
     @classmethod
-    def load(cls, model_name: str, cache_model: bool = True) -> PreTrainedModel:
+    def load(cls, model_name: str, cache_model: bool = True, remove_first_layer: bool = False) -> PreTrainedModel:
         if model_name in cls._cache:
             return PretrainedBertModel._cache[model_name]
 
         model = AutoModel.from_pretrained(model_name, output_attentions=True)
+        if remove_first_layer:
+            model = cls.deleteEncodingLayers(model, [i for i in range(0,11)])
         if cache_model:
             cls._cache[model_name] = model
 
         return model
+
+    @classmethod
+    def deleteEncodingLayers(cls, model, layers_to_keep):  # must pass in the full bert model
+        import torch.nn as nn
+        import copy
+        oldModuleList = model.encoder.layer
+        newModuleList = nn.ModuleList()
+
+        # Now iterate over all layers, only keepign only the relevant layers.
+        for i in layers_to_keep:
+            newModuleList.append(oldModuleList[i])
+
+        # create a copy of the model, modify it with the new list, and return
+        copyOfModel = copy.deepcopy(model)
+        copyOfModel.encoder.layer = newModuleList
+
+        return copyOfModel
+
 
 
 class BertEmbedder(TokenEmbedder):
@@ -257,8 +277,9 @@ class PretrainedBertEmbedder(BertEmbedder):
         requires_grad: bool = False,
         top_layer_only: bool = False,
         special_tokens_fix: int = 0,
+        remove_first_layer: bool = False
     ) -> None:
-        model = PretrainedBertModel.load(pretrained_model)
+        model = PretrainedBertModel.load(pretrained_model, remove_first_layer=remove_first_layer)
         # model.config.output_attentions=True
         for param in model.parameters():
             param.requires_grad = requires_grad

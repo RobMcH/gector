@@ -3,6 +3,7 @@ import logging
 import os
 import sys
 from time import time
+from collections import OrderedDict
 
 import numpy as np
 
@@ -65,7 +66,8 @@ class GecBERTModel(object):
                  min_error_probability=0.0,
                  confidence=0,
                  resolve_cycles=False,
-                 heads_to_prune=None
+                 heads_to_prune=None,
+                 remove_first_layer=False
                  ):
         self.model_weights = list(map(float, weigths)) if weigths else [1] * len(model_paths)
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -84,27 +86,51 @@ class GecBERTModel(object):
         # set training parameters and operations
         self.indexers = []
         self.models = []
-        #heads we would like to prune
+        # heads we would like to prune
         self.heads_to_prune = heads_to_prune
+        self.remove_first_layer = remove_first_layer
         for model_path in model_paths:
             if is_ensemble:
                 model_name, special_tokens_fix = self._get_model_data(model_path)
             weights_name = get_weights_name(model_name, lowercase_tokens)
             self.indexers.append(self._get_indexer(weights_name, special_tokens_fix))
             model = Seq2Labels(vocab=self.vocab,
-                               text_field_embedder=self._get_embbeder(weights_name, special_tokens_fix),
+                               text_field_embedder=self._get_embbeder(weights_name, special_tokens_fix, self.remove_first_layer),
                                confidence=self.confidence
                                ).to(self.device)
             if torch.cuda.is_available():
                 model.load_state_dict(torch.load(model_path))
             else:
-                model.load_state_dict(torch.load(model_path,
-                                                 map_location=torch.device('cpu')))
+                state_dict = torch.load(model_path, map_location=torch.device('cpu'))
+                if self.remove_first_layer:
+                    state_dict = self.remove_layer_from_dict(state_dict)
+                model.load_state_dict(state_dict)
 
             if self.heads_to_prune is not None:
                 model.text_field_embedder.token_embedder_bert.bert_model.prune_heads(self.heads_to_prune)
             model.eval()
             self.models.append(model)
+
+    def remove_layer_from_dict(self, state_dict):
+        weights_to_remove = []
+        # identify weights of first layer
+        for key in state_dict.keys():
+            if '.0.' in key:
+                weights_to_remove.append(key)
+        # remove corresponding weights from dict
+        for key in weights_to_remove:
+            del state_dict[key]
+        # appropriatly rename remaining layers and add to new dict
+        state_dict_new = OrderedDict()
+        for key in state_dict.keys():
+            for i in range(1, 13):
+                reg = '.' + str(i) + '.'
+                if reg in key:
+                    new_key = key.replace(reg, '.' + str(i - 1) + '.')
+                    state_dict_new[new_key] = state_dict[key]
+            if not any(char.isdigit() for char in key):  # remaining weights
+                state_dict_new[key] = state_dict[key]
+        return state_dict_new
 
     @staticmethod
     def _get_model_data(model_path):
@@ -178,12 +204,13 @@ class GecBERTModel(object):
 
         return start_pos - 1, end_pos - 1, sugg_token_clear, prob
 
-    def _get_embbeder(self, weigths_name, special_tokens_fix):
+    def _get_embbeder(self, weigths_name, special_tokens_fix, remove_first_layer=False):
         embedders = {'bert': PretrainedBertEmbedder(
             pretrained_model=weigths_name,
             requires_grad=False,
             top_layer_only=True,
-            special_tokens_fix=special_tokens_fix)
+            special_tokens_fix=special_tokens_fix,
+            remove_first_layer=remove_first_layer)
         }
 
         text_field_embedder = BasicTextFieldEmbedder(
