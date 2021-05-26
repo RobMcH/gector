@@ -1,4 +1,5 @@
 import os
+import numpy as np
 from pathlib import Path
 import utils.adversarial as adversarial
 
@@ -117,7 +118,8 @@ def convert_using_plural(token, smart_action):
 def convert_sentence(sent: str, label: str, model, num_perturbations: int):
     # Get the aggregated attention weights for each token, generate adversarial examples.
     tokens = [token.text for token in adversarial.nlp(sent)]
-    weights = model.extract_attention_weights([tokens])
+    weights = model.extract_candidate_words([tokens], return_attention=True)
+    weights /= np.sum(weights)
     perturbations = []
     for i in range(num_perturbations):
         perturbations.append(adversarial.random_perturbation(sent, label))

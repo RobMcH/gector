@@ -319,58 +319,8 @@ class GecBERTModel(object):
 
         return final_batch, total_updates
 
-    def extract_attention_weights(self, full_batch: List[str], layer: int = 0, head_aggregation: str = 'sum') ->\
-            List[torch.Tensor]:
-            """
-            Extract attention weights from a sentence.
-
-            Args:
-                 full_batch (List(str)):
-                 layer (int):
-                 n (int): Number of words to extract from a given sentence.
-                 aggregation (str): Method for merging tokens attention values back into a single
-                    word attention score (for words that have been split by berts token embedding).
-                    'sum' adds the tokens together, 'max' selects the maximum, 'mean' takes the
-                    average.
-
-            Returns:
-                list of lists containing the indexes of the words with the top n attention scores in
-                reverse order. Each sentence results in list of size n sorted in reverse order (i.e.
-                [..., 2nd largest idx, largest idx]) and this function returns a list containing one
-                such list for each sentence.
-            """
-            # Adapting the handle batch and predict methods in order to extract attention weights.
-            final_batch = full_batch[:]
-            # Ignore inputs that are too short.
-            pred_ids = [i for i in range(len(full_batch)) if len(full_batch[i]) >= self.min_len]
-
-            # Assuming one iteration for now... TBD what we will do here
-            orig_batch = [final_batch[i] for i in pred_ids]
-            sequences = self.preprocess(orig_batch)
-            attention_scores = []
-            for batch, model in zip(sequences, self.models):
-                batch = util.move_to_device(batch.as_tensor_dict(), 0 if torch.cuda.is_available() else -1)
-                with torch.no_grad():
-                    input_ids, offsets = batch['tokens']['bert'], batch['tokens']['bert-offsets']
-                    _, attention_outputs = self.models[0].text_field_embedder.token_embedder_bert(input_ids, offsets,
-                                                                                                  extract_attention=True)
-                # Take out attention matrices for layer of interest
-                layer_attn = attention_outputs[layer]  # shape = (2,12,10,10)
-                # Sum over multi heads
-                if head_aggregation == 'sum':
-                    layer_aggr_attn = torch.sum(layer_attn, axis=1)  # aggregate heads
-                elif head_aggregation == 'prod':
-                    layer_aggr_attn = torch.prod(layer_attn, axis=1)
-                else:
-                    raise ValueError("Head aggregation either needs to be sum or prod.")
-                # layer_aggr_attn = layer_attn[:,4,:,:]  # or pick a particular head
-                # now shape is (2,10,10)
-                # sum attention weights for each input token
-                attention_scores.append(torch.sum(layer_aggr_attn, axis=1))
-            return attention_scores
-
-    def extract_candidate_words(self, full_batch: List[str], layer: int = 0,
-                                n: int = 1, aggregation: str = 'sum', head_aggregation: str = 'sum') -> List[List[int]]:
+    def extract_candidate_words(self, full_batch: List[str], layer: int = 0, n: int = 1, aggregation: str = 'sum',
+                                head_aggregation: str = 'sum', return_attention: bool = False) -> List[List[int]]:
         """
         Extract words from a sentence based on bert attention scores.
 
@@ -382,6 +332,7 @@ class GecBERTModel(object):
                 word attention score (for words that have been split by berts token embedding).
                 'sum' adds the tokens together, 'max' selects the maximum, 'mean' takes the
                 average.
+            return_attention (bool): Whether or not to return the attention scores.
 
         Returns:
             list of lists containing the indexes of the words with the top n attention scores in
@@ -418,7 +369,7 @@ class GecBERTModel(object):
             # sum attention weights for each input token
             token_list = list(self.indexers[0]['bert'].vocab.keys())
             attention_vals = torch.sum(layer_aggr_attn, axis=1)
-            max_idxs = []
+            max_idxs, attention_scores = [], []
             for s_idx, sentence in enumerate(attention_vals):
                 sent_scores = []
                 word_score = 0
@@ -452,6 +403,9 @@ class GecBERTModel(object):
                                 # First word in sentence.
                                 word_score += attention_val
                                 token_count += 1
+                attention_scores.append(sent_scores)
                 sent_max_n_idxs = np.argsort(sent_scores)[-n:].tolist()
                 max_idxs.append(sent_max_n_idxs)
+        if return_attention:
+            return np.array(attention_scores)
         return max_idxs
