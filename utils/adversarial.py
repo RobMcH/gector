@@ -90,7 +90,7 @@ def find_word_perturbation(sentence: str, label: str, target_idx: List[int], num
             perturbation = perturb_pronoun(target_token)
         elif pos == "ADP":
             perturbation = perturb_preposition(target_token)
-        elif pos == "NUM" or pos == "PROPN":
+        elif pos == "NUM" or pos == "PROPN" or pos == "PART":
             # Remain unchanged.
             perturbation = target_token.text
         elif pos == "PUNCT":
