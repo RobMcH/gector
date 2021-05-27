@@ -1,9 +1,7 @@
 import os
 import numpy as np
 from pathlib import Path
-import utils.adversarial as adversarial
-
-import spacy.tokens
+from adversarial import nlp, random_perturbation
 
 VOCAB_DIR = Path(__file__).resolve().parent.parent / "data"
 PAD = "@@PADDING@@"
@@ -117,12 +115,12 @@ def convert_using_plural(token, smart_action):
 
 def convert_sentence(sent: str, label: str, model, num_perturbations: int):
     # Get the aggregated attention weights for each token, generate adversarial examples.
-    tokens = [token.text for token in adversarial.nlp(sent)]
+    tokens = [token.text for token in nlp(sent)]
     weights = model.extract_candidate_words([tokens], return_attention=True)
     weights /= np.sum(weights)
     perturbations = []
     for i in range(num_perturbations):
-        perturbations.append(adversarial.random_perturbation(sent, label))
+        perturbations.append(random_perturbation(sent, label)[:2])
     return perturbations, weights, tokens
 
 

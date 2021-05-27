@@ -4,9 +4,11 @@ from tqdm import tqdm
 from utils.helpers import read_lines
 from gector.gec_model import GecBERTModel
 import utils.adversarial as adv
+from collections import Counter
 
 
-def attention_for_file(input_file: str, model: GecBERTModel, acc: str, agg: str, batch_size: int = 32):
+def attention_for_file(input_file: str, model: GecBERTModel, acc: str, agg: str, batch_size: int = 32,
+                       indices_per_sent: int = 1):
     data = read_lines(input_file)
     lengths = []
     batch_extracted_words = []
@@ -17,49 +19,61 @@ def attention_for_file(input_file: str, model: GecBERTModel, acc: str, agg: str,
         lengths.append(len(split))
         batch.append(split)
         if len(batch) == batch_size:
-            extracted_words = model.extract_candidate_words(batch, aggregation=acc, head_aggregation=agg)
-            # Flatten list for this experiment.
-            extracted_words = [item for sublist in extracted_words for item in sublist]
+            extracted_words = model.extract_candidate_words(batch, aggregation=acc, head_aggregation=agg,
+                                                            n=indices_per_sent)
             batch_extracted_words.extend(extracted_words)
             batch = []
     if batch:
-        extracted_words = model.extract_candidate_words(batch, aggregation=acc, head_aggregation=agg)
-        extracted_words = [item for sublist in extracted_words for item in sublist]
+        extracted_words = model.extract_candidate_words(batch, aggregation=acc, head_aggregation=agg,
+                                                        n=indices_per_sent)
         batch_extracted_words.extend(extracted_words)
     return np.array(lengths), batch_extracted_words
 
 
 def attention_perturbations(input_file: str, label_file: str, model: GecBERTModel, acc: str, agg: str,
-                            batch_size: int = 32):
+                            batch_size: int = 32, perturbations_per_sent: int = 1):
     # Perturb sentences according to rules by choosing a vulnerable token identified by attention scores.
     data = read_lines(input_file, skip_strip=True)
     labels = read_lines(label_file, skip_strip=True)
     # Get vulnerable tokens by attention scores.
-    lengths, batch_extracted_words = attention_for_file(input_file, model, acc, agg, batch_size)
+    lengths, batch_extracted_words = attention_for_file(input_file, model, acc, agg, batch_size, perturbations_per_sent)
     # Generate perturbed outputs.
     perturbations, perturbation_labels = [], []
     indices = np.where(lengths >= model.min_len)[0]
+    pos_counter = Counter()
     for j, i in tqdm(enumerate(indices), total=indices.size):
-        perturbation, label = adv.find_word_perturbation(data[i], labels[i], batch_extracted_words[j])
-        if len(perturbation.strip()) == 0:
-            perturbation, label = data[i], labels[i]
-        perturbations.append(perturbation)
-        perturbation_labels.append(label)
+        perturbations_temp, labels_temp, pos = adv.find_word_perturbation(data[i], labels[i], batch_extracted_words[j],
+                                                                          perturbations_per_sent)
+        for pos_tag in pos:
+            pos_counter[pos_tag] += 1
+        for k in range(len(perturbations_temp)):
+            perturbation, label = perturbations_temp[k], labels_temp[k]
+            if len(perturbation.strip()) == 0:
+                perturbation, label = data[i], labels[i]
+            perturbations.append(perturbation)
+            perturbation_labels.append(label)
     # Each item in perturbed_batch is of form (perturbed_input, label).
+    print(pos_counter)
     return perturbations, perturbation_labels
 
 
-def random_perturbations(input_file: str, label_file: str):
+def random_perturbations(input_file: str, label_file: str, perturbations_per_sent: int = 1):
     # Perturb sentences according to rules by choosing a random token.
     data = read_lines(input_file, skip_strip=True)
     labels = read_lines(label_file, skip_strip=True)
     perturbations, perturbation_labels = [], []
+    pos_counter = Counter()
     for i, sent in tqdm(enumerate(data), total=len(data)):
-        perturbation, label = adv.random_perturbation(sent, labels[i])
-        if len(perturbation.strip()) == 0:
-            perturbation, label = sent, labels[i]
-        perturbations.append(perturbation)
-        perturbation_labels.append(label)
+        perturbations_temp, labels_temp, pos = adv.random_perturbation(sent, labels[i], perturbations_per_sent)
+        for pos_tag in pos:
+            pos_counter[pos_tag] += 1
+        for k in range(len(perturbations_temp)):
+            perturbation, label = perturbations_temp[k], labels_temp[k]
+            if len(perturbation.strip()) == 0:
+                perturbation, label = data[i], labels[i]
+            perturbations.append(perturbation)
+            perturbation_labels.append(label)
+    print(pos_counter)
     return perturbations, perturbation_labels
 
 
@@ -79,9 +93,10 @@ def main(args):
                              weigths=args.weights)
         perturbations, perturbation_labels = attention_perturbations(args.input_file, args.output_file, model,
                                                                      args.accumulator, args.head_aggregator,
-                                                                     batch_size=args.batch_size)
+                                                                     args.batch_size, args.num_perturbations)
     elif args.attack == 'random':
-        perturbations, perturbation_labels = random_perturbations(args.input_file, args.output_file)
+        perturbations, perturbation_labels = random_perturbations(args.input_file, args.output_file,
+                                                                  args.num_perturbations)
     # Write to file.
     with open(f"{args.attack}_{args.accumulator}_{args.head_aggregator}_perturbed_inputs.txt", "w") as f:
         for perturbation in perturbations:
@@ -92,7 +107,6 @@ def main(args):
 
 
 if __name__ == '__main__':
-
     # read parameters
     parser = argparse.ArgumentParser()
     parser.add_argument('--model_path',
@@ -171,5 +185,9 @@ if __name__ == '__main__':
                         help='How to aggregate the attention heads.',
                         choices=['sum', 'prod'],
                         default='sum')
+    parser.add_argument('--num_perturbations',
+                        help='The maximum number of perturbations per sentence.',
+                        type=int,
+                        default=1)
     args = parser.parse_args()
     main(args)

@@ -1,7 +1,7 @@
 import spacy
 import random
 import numpy as np
-from typing import Tuple, Set
+from typing import Tuple, Set, List
 # Docs: https://www.nodebox.net/code/index.php/Linguistics.html. Install via requirements.txt.
 import nodebox_linguistics_extended as nle
 from nltk.corpus import wordnet as wn
@@ -33,6 +33,8 @@ PREP = ["with", "at", "to", "from", "into", "against", "of", "in", "for", "on", 
 AUX = ["be", "can", "could", "dare", "do", "have", "may", "might", "must", "need", "ought", "shall", "should",
        "will", "would"]
 AUX_REPLACEMENT = {"be", "have"}
+
+
 # --- --- #
 # Helper functions #
 
@@ -45,48 +47,63 @@ def find(doc: spacy.tokens.Doc, idx: int):
             counter += 1
     return counter
 
+
 # --- --- #
 
 
-def random_perturbation(sentence: str, label: str) -> Tuple[str, str]:
+def random_perturbation(sentence: str, label: str, num: int = 1) -> Tuple[
+        List[str], List[str], List[str]]:
     # Choose a random index w.r.t. the spacy tokenisation.
-    idx = np.random.randint(0, len(nlp(sentence)))
+    sent_length = len(nlp(sentence))
+    idx = random.sample(range(0, sent_length), np.minimum(num, sent_length))
     # Perturb sentence according to rules.
-    return find_word_perturbation(sentence, label, idx)
+    return find_word_perturbation(sentence, label, idx, len(idx))
 
 
-def find_word_perturbation(sentence: str, label: str, target_idx: int) -> Tuple[str, str]:
-    # Obtain pos tags and target token.
-    doc = nlp(sentence)
-    target_token = doc[target_idx]
-    occurrence = find(doc, target_idx)
-    # Perturb input depending on the target token's pos tag.
-    pos = target_token.pos_
-    if pos == "NOUN":
-        perturbation = perturb_noun(target_token)
-    elif pos == "AUX":
-        perturbation = perturb_auxiliary(target_token)
-    elif pos == "VERB":
-        perturbation = perturb_verb(target_token.text)
-    elif pos == "ADJ":
-        perturbation, label = perturb_adjective(target_token, occurrence, label)
-    elif pos == "ADV":
-        perturbation, label = perturb_adverb(target_token, occurrence, label)
-    elif pos == "PRON":
-        perturbation = perturb_pronoun(target_token)
-    elif pos == "ADP":
-        perturbation = perturb_preposition(target_token)
-    elif pos == "NUM" or pos == "PROPN":
-        # Remain unchanged.
-        perturbation = target_token.text
-    elif pos == "PUNCT":
-        # Delete punctuation.
-        perturbation = ""
-    else:
-        # Delete or UNK.
-        perturbation = perturb(target_token)
-    # Return perturbed input and its label.
-    return generate_output(doc, perturbation, target_idx), label
+def find_word_perturbation(sentence: str, label: str, target_idx: List[int], num: int = 1) -> Tuple[
+        List[str], List[str], List[str]]:
+    perturbations, labels, pos_list = [], [], []
+    for i in range(num):
+        # Obtain pos tags and target token.
+        doc = nlp(sentence)
+        # Handle empty sentences.
+        if len(doc) <= target_idx[i]:
+            perturbations.append(sentence)
+            labels.append(label)
+            continue
+        target_token = doc[target_idx[i]]
+        occurrence = find(doc, target_idx[i])
+        # Perturb input depending on the target token's pos tag.
+        pos = target_token.pos_
+        pos_list.append(pos)
+        if pos == "NOUN":
+            perturbation = perturb_noun(target_token)
+        elif pos == "AUX":
+            perturbation = perturb_auxiliary(target_token)
+        elif pos == "VERB":
+            perturbation = perturb_verb(target_token.text)
+        elif pos == "ADJ":
+            perturbation, label = perturb_adjective(target_token, occurrence, label)
+        elif pos == "ADV":
+            perturbation, label = perturb_adverb(target_token, occurrence, label)
+        elif pos == "PRON":
+            perturbation = perturb_pronoun(target_token)
+        elif pos == "ADP":
+            perturbation = perturb_preposition(target_token)
+        elif pos == "NUM" or pos == "PROPN":
+            # Remain unchanged.
+            perturbation = target_token.text
+        elif pos == "PUNCT":
+            # Delete punctuation.
+            perturbation = ""
+        else:
+            # Delete or UNK.
+            perturbation = perturb(target_token)
+        # Return perturbed input and its label.
+        sentence = generate_output(doc, perturbation, target_idx[i])
+        perturbations.append(sentence)
+        labels.append(label)
+    return perturbations, labels, pos_list
 
 
 def generate_output(doc: spacy.tokens.Doc, perturbation: str, idx: int):
@@ -237,7 +254,10 @@ def replace_by_synonym(token: spacy.tokens.token.Token) -> str:
 
 def get_synonyms(token: spacy.tokens.token.Token) -> Set[str]:
     # Returns a set containing all synonyms over all synsets for the given token.
-    synsets = wn.synsets(token.text, pos=spacy_tag_to_wordnet(token))
+    wn_tag = spacy_tag_to_wordnet(token)
+    if wn_tag is None:
+        return token.text
+    synsets = wn.synsets(token.text, pos=wn_tag)
     synonyms = set(token.text)
     for sn in synsets:
         synonyms.update(sn.lemma_names())
@@ -259,4 +279,4 @@ def spacy_tag_to_wordnet(token: spacy.tokens.token.Token) -> str:
         # Verbs.
         return "v"
     else:
-        raise ValueError(f"Invalid POS tag: {token.tag_}")
+        return None
