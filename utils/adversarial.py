@@ -6,7 +6,6 @@ from typing import Tuple, Set, List
 import nodebox_linguistics_extended as nle
 from nltk.corpus import wordnet as wn
 
-UNK = "@@UNKNOWN@@"
 # Used for obtaining POS tags.
 nlp = spacy.load("en_core_web_sm", disable=["ner", "lemmatizer"])
 # Pronoun lists #
@@ -180,7 +179,7 @@ def perturb_verb(token: str) -> str:
             # Infinitive.
             perturbation = nle.verb.infinitive(token)
         # NLE can return an empty string without throwing an error. There is no easy way to avoid this.
-        if perturbation != '':
+        if perturbation != '' and perturbation != token:
             break
     return perturbation
 
@@ -248,12 +247,8 @@ def perturb_preposition(token: spacy.tokens.token.Token) -> str:
 
 
 def perturb(token: spacy.tokens.token.Token) -> str:
-    # Perturb word by removing token or replacing it with UNK symbol.
-    if np.random.uniform() < 0.5:
-        # Delete token.
-        return ""
-    else:
-        return UNK
+    # Delete token.
+    return ""
 
 
 def replace_by_synonym(token: spacy.tokens.token.Token) -> str:

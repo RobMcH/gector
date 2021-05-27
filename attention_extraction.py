@@ -8,11 +8,12 @@ from collections import Counter
 
 
 def attention_for_file(input_file: str, model: GecBERTModel, acc: str, agg: str, batch_size: int = 32,
-                       indices_per_sent: int = 1):
+                       indices_per_sent: int = 1, attention_sorting: str = "max"):
     data = read_lines(input_file)
     lengths = []
     batch_extracted_words = []
     batch = []
+    min_scores = True if attention_sorting == "min" else False
     # Extract attention scores for inputs.
     for sent in tqdm(data):
         split = sent.split()
@@ -20,23 +21,24 @@ def attention_for_file(input_file: str, model: GecBERTModel, acc: str, agg: str,
         batch.append(split)
         if len(batch) == batch_size:
             extracted_words = model.extract_candidate_words(batch, aggregation=acc, head_aggregation=agg,
-                                                            n=indices_per_sent)
+                                                            n=indices_per_sent, min_scores=min_scores)
             batch_extracted_words.extend(extracted_words)
             batch = []
     if batch:
         extracted_words = model.extract_candidate_words(batch, aggregation=acc, head_aggregation=agg,
-                                                        n=indices_per_sent)
+                                                        n=indices_per_sent, min_scores=min_scores)
         batch_extracted_words.extend(extracted_words)
     return np.array(lengths), batch_extracted_words
 
 
 def attention_perturbations(input_file: str, label_file: str, model: GecBERTModel, acc: str, agg: str,
-                            batch_size: int = 32, perturbations_per_sent: int = 1):
+                            batch_size: int = 32, perturbations_per_sent: int = 1, attention_sorting: str = "max"):
     # Perturb sentences according to rules by choosing a vulnerable token identified by attention scores.
     data = read_lines(input_file, skip_strip=True)
     labels = read_lines(label_file, skip_strip=True)
     # Get vulnerable tokens by attention scores.
-    lengths, batch_extracted_words = attention_for_file(input_file, model, acc, agg, batch_size, perturbations_per_sent)
+    lengths, batch_extracted_words = attention_for_file(input_file, model, acc, agg, batch_size, perturbations_per_sent,
+                                                        attention_sorting)
     # Generate perturbed outputs.
     perturbations, perturbation_labels = [], []
     indices = np.where(lengths >= model.min_len)[0]
@@ -93,7 +95,8 @@ def main(args):
                              weigths=args.weights)
         perturbations, perturbation_labels = attention_perturbations(args.input_file, args.output_file, model,
                                                                      args.accumulator, args.head_aggregator,
-                                                                     args.batch_size, args.num_perturbations)
+                                                                     args.batch_size, args.num_perturbations,
+                                                                     args.attention_sorting)
     elif args.attack == 'random':
         perturbations, perturbation_labels = random_perturbations(args.input_file, args.output_file,
                                                                   args.num_perturbations)
@@ -177,6 +180,10 @@ if __name__ == '__main__':
                         help='Define the attack mode.',
                         choices=['attention', 'random'],
                         default='attention')
+    parser.add_argument('--attention_sorting',
+                        help='Whether to use the min or max attention scores. Only relevant for attack=attention.',
+                        choices=['min', 'max'],
+                        default='max')
     parser.add_argument('--accumulator',
                         help='Define how to accumulate attention scores.',
                         choices=['sum', 'max', 'mean'],

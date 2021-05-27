@@ -84,7 +84,7 @@ class GecBERTModel(object):
         # set training parameters and operations
         self.indexers = []
         self.models = []
-        #heads we would like to prune
+        # heads we would like to prune
         self.heads_to_prune = heads_to_prune
         for model_path in model_paths:
             if is_ensemble:
@@ -320,7 +320,8 @@ class GecBERTModel(object):
         return final_batch, total_updates
 
     def extract_candidate_words(self, full_batch: List[str], layer: int = 0, n: int = 1, aggregation: str = 'sum',
-                                head_aggregation: str = 'sum', return_attention: bool = False) -> List[List[int]]:
+                                head_aggregation: str = 'sum', return_attention: bool = False,
+                                min_scores: bool = False) -> List[List[int]]:
         """
         Extract words from a sentence based on bert attention scores.
 
@@ -333,6 +334,7 @@ class GecBERTModel(object):
                 'sum' adds the tokens together, 'max' selects the maximum, 'mean' takes the
                 average.
             return_attention (bool): Whether or not to return the attention scores.
+            min_scores: Whether to return the minimum or maximum attention scores.
 
         Returns:
             list of lists containing the indexes of the words with the top n attention scores in
@@ -392,7 +394,7 @@ class GecBERTModel(object):
                                 elif aggregation == 'mean':
                                     # take the average of the tokens scores
                                     token_count += 1
-                                    word_score += (attention_val - word_score)/token_count
+                                    word_score += (attention_val - word_score) / token_count
                                 else:
                                     raise ValueError(f'{aggregation} not a valid aggregation method')
                             elif word_score > 0:
@@ -404,8 +406,10 @@ class GecBERTModel(object):
                                 word_score += attention_val
                                 token_count += 1
                 attention_scores.append(sent_scores)
-                sent_max_n_idxs = np.argsort(sent_scores)[-n:].tolist()
-                max_idxs.append(sent_max_n_idxs)
+                sent_max_n_idxs = np.argsort(sent_scores)
+                if min_scores:
+                    sent_max_n_idxs = np.flip(sent_max_n_idxs)
+                max_idxs.append(sent_max_n_idxs[-n:].tolist())
         if return_attention:
             return np.array(attention_scores)
         return max_idxs
