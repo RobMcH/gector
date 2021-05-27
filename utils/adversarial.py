@@ -149,8 +149,9 @@ def perturb_noun(token: spacy.tokens.token.Token) -> str:
 def perturb_verb(token: str) -> str:
     # Perturb verb by changing it to its present, progressive, past, perfect, 3rd person singular, or infinitive form.
     try:
-        tense = VERB_TENSES[nle.verb.tense(token)]
-        negated = nle.verb.is_tense(tense, negated=True)
+        token_tense = nle.verb.tense(token)
+        tense = VERB_TENSES[token_tense]
+        negated = nle.verb.is_tense(token_tense, negated=True)
     except KeyError:
         # Handle the case when the verb is unknown.
         return token
