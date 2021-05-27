@@ -2,6 +2,7 @@ import os
 import numpy as np
 from pathlib import Path
 from adversarial import nlp, random_perturbation
+from typing import Tuple, List
 
 VOCAB_DIR = Path(__file__).resolve().parent.parent / "data"
 PAD = "@@PADDING@@"
@@ -113,7 +114,7 @@ def convert_using_plural(token, smart_action):
         raise Exception(f"Unknown action type {smart_action}")
 
 
-def convert_sentence(sent: str, label: str, model, num_perturbations: int):
+def convert_sentence(sent: str, label: str, model, num_perturbations: int) -> Tuple[List[Tuple], np.ndarray, List[str]]:
     # Get the aggregated attention weights for each token, generate adversarial examples.
     tokens = [token.text for token in nlp(sent)]
     weights = model.extract_candidate_words([tokens], return_attention=True)

@@ -39,7 +39,7 @@ AUX_REPLACEMENT = {"be", "have"}
 # Helper functions #
 
 
-def find(doc: spacy.tokens.Doc, idx: int):
+def find(doc: spacy.tokens.Doc, idx: int) -> int:
     word = doc[idx]
     counter = 0
     for i, token in enumerate(doc):
@@ -106,7 +106,7 @@ def find_word_perturbation(sentence: str, label: str, target_idx: List[int], num
     return perturbations, labels, pos_list
 
 
-def generate_output(doc: spacy.tokens.Doc, perturbation: str, idx: int):
+def generate_output(doc: spacy.tokens.Doc, perturbation: str, idx: int) -> str:
     # Replace token in input with perturbation.
     if len(doc) > idx + 1:
         if idx == 0:
@@ -120,7 +120,7 @@ def generate_output(doc: spacy.tokens.Doc, perturbation: str, idx: int):
             return f"{doc[:idx]} {perturbation}" if perturbation != "" else doc[:idx].text
 
 
-def generate_label(label: str, token: str, replacement: str, occurrence: int):
+def generate_label(label: str, token: str, replacement: str, occurrence: int) -> str:
     return label.replace(token, "<$$$>", occurrence).replace(token, replacement).replace("<$$$>", token)
 
 
@@ -265,7 +265,7 @@ def replace_by_synonym(token: spacy.tokens.token.Token) -> str:
 def get_synonyms(token: spacy.tokens.token.Token) -> Set[str]:
     # Returns a set containing all synonyms over all synsets for the given token.
     wn_tag = spacy_tag_to_wordnet(token)
-    if wn_tag is None:
+    if wn_tag == "":
         return token.text
     synsets = wn.synsets(token.text, pos=wn_tag)
     synonyms = set(token.text)
@@ -289,4 +289,4 @@ def spacy_tag_to_wordnet(token: spacy.tokens.token.Token) -> str:
         # Verbs.
         return "v"
     else:
-        return None
+        return ""
