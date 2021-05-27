@@ -150,28 +150,38 @@ def perturb_verb(token: str) -> str:
     # Perturb verb by changing it to its present, progressive, past, perfect, 3rd person singular, or infinitive form.
     try:
         tense = VERB_TENSES[nle.verb.tense(token)]
+        negated = nle.verb.is_tense(tense, negated=True)
     except KeyError:
         # Handle the case when the verb is unknown.
         return token
-    form = np.random.choice([i for i in range(6) if i != tense])
-    if form == 0:
-        # Present form.
-        return nle.verb.present(token)
-    elif form == 1:
-        # Progressive form.
-        return nle.verb.present_participle(token)
-    elif form == 2:
-        # Past form.
-        return nle.verb.past(token)
-    elif form == 3:
-        # Perfect form.
-        return nle.verb.past_participle(token)
-    elif form == 4:
-        # 3rd person singular form.
-        return nle.verb.present(token, person=3)
-    elif form == 5:
-        # Infinitive.
-        return nle.verb.infinitive(token)
+    # Only consider appropriate tenses.
+    tenses = [i for i in [0, 2, 4] if i != tense] if negated else [i for i in range(6) if i != tense]
+    perturbation = token
+    # Loop multiple times in case NLE returns an empty string. If no valid perturbation is found the input is returned.
+    for i in range(10):
+        form = np.random.choice(tenses)
+        if form == 0:
+            # Present form.
+            perturbation = nle.verb.present(token, negate=negated)
+        elif form == 1:
+            # Progressive form.
+            perturbation = nle.verb.present_participle(token)
+        elif form == 2:
+            # Past form.
+            perturbation = nle.verb.past(token, negate=negated)
+        elif form == 3:
+            # Perfect form.
+            perturbation = nle.verb.past_participle(token)
+        elif form == 4:
+            # 3rd person singular form.
+            perturbation = nle.verb.present(token, person=3, negate=negated)
+        elif form == 5:
+            # Infinitive.
+            perturbation = nle.verb.infinitive(token)
+        # NLE can return an empty string without throwing an error. There is no easy way to avoid this.
+        if perturbation != '':
+            break
+    return perturbation
 
 
 def perturb_adjective(token: spacy.tokens.token.Token, occurrence: int, label: str) -> Tuple[str, str]:
