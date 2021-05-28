@@ -39,6 +39,7 @@ AUX_REPLACEMENT = {"be", "have"}
 
 
 def find(doc: spacy.tokens.Doc, idx: int) -> int:
+    # Find how many times the token specified by idx occurs before idx.
     word = doc[idx]
     counter = 0
     for i, token in enumerate(doc):
@@ -46,6 +47,16 @@ def find(doc: spacy.tokens.Doc, idx: int) -> int:
             counter += 1
     return counter
 
+
+def convert_sentence(sent: str, label: str, model, num_perturbations: int) -> Tuple[List[Tuple], np.ndarray, List[str]]:
+    # Get the aggregated attention weights for each token, generate adversarial examples.
+    tokens = [token.text for token in nlp(sent)]
+    weights = model.extract_candidate_words([tokens], return_attention=True)
+    weights /= np.sum(weights)
+    perturbations = []
+    for i in range(num_perturbations):
+        perturbations.append(random_perturbation(sent, label)[:2])
+    return perturbations, weights, tokens
 
 # --- --- #
 
@@ -67,14 +78,11 @@ def find_word_perturbation(sentence: str, label: str, target_idx: List[int], num
         doc = nlp(sentence)
         # Handle empty sentences.
         if len(doc) <= target_idx[i]:
-            perturbations.append(sentence)
-            labels.append(label)
             continue
         target_token = doc[target_idx[i]]
         occurrence = find(doc, target_idx[i])
         # Perturb input depending on the target token's pos tag.
         pos = target_token.pos_
-        pos_list.append(pos)
         if pos == "NOUN":
             perturbation = perturb_noun(target_token)
         elif pos == "AUX":
@@ -102,6 +110,7 @@ def find_word_perturbation(sentence: str, label: str, target_idx: List[int], num
         sentence = generate_output(doc, perturbation, target_idx[i])
         perturbations.append(sentence)
         labels.append(label)
+        pos_list.append(pos)
     return perturbations, labels, pos_list
 
 

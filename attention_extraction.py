@@ -46,12 +46,12 @@ def attention_perturbations(input_file: str, label_file: str, model: GecBERTMode
     for j, i in tqdm(enumerate(indices), total=indices.size):
         perturbations_temp, labels_temp, pos = adv.find_word_perturbation(data[i], labels[i], batch_extracted_words[j],
                                                                           perturbations_per_sent)
-        for pos_tag in pos:
-            pos_counter[pos_tag] += 1
         for k in range(len(perturbations_temp)):
             perturbation, label = perturbations_temp[k], labels_temp[k]
-            if len(perturbation.strip()) == 0:
-                perturbation, label = data[i], labels[i]
+            if len(perturbation.strip()) == 0 or perturbation == data[i]:
+                # Ignore empty or duplicate perturbations.
+                continue
+            pos_counter[pos[k]] += 1
             perturbations.append(perturbation)
             perturbation_labels.append(label)
     # Each item in perturbed_batch is of form (perturbed_input, label).
@@ -67,12 +67,12 @@ def random_perturbations(input_file: str, label_file: str, perturbations_per_sen
     pos_counter = Counter()
     for i, sent in tqdm(enumerate(data), total=len(data)):
         perturbations_temp, labels_temp, pos = adv.random_perturbation(sent, labels[i], perturbations_per_sent)
-        for pos_tag in pos:
-            pos_counter[pos_tag] += 1
         for k in range(len(perturbations_temp)):
             perturbation, label = perturbations_temp[k], labels_temp[k]
-            if len(perturbation.strip()) == 0:
-                perturbation, label = data[i], labels[i]
+            if len(perturbation.strip()) == 0 or perturbation == data[i]:
+                # Ignore empty or duplicate perturbations.
+                continue
+            pos_counter[pos[k]] += 1
             perturbations.append(perturbation)
             perturbation_labels.append(label)
     print(pos_counter)
