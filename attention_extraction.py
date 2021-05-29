@@ -1,7 +1,7 @@
 import argparse
 import numpy as np
 from tqdm import tqdm
-from utils.helpers import read_lines
+from utils.helpers import read_lines, analyse_rules
 from gector.gec_model import GecBERTModel
 import utils.adversarial as adv
 from collections import Counter
@@ -55,7 +55,7 @@ def attention_perturbations(input_file: str, label_file: str, model: GecBERTMode
             perturbations.append(perturbation)
             perturbation_labels.append(label)
     # Each item in perturbed_batch is of form (perturbed_input, label).
-    print(pos_counter)
+    print(analyse_rules(pos_counter))
     return perturbations, perturbation_labels
 
 
@@ -75,7 +75,7 @@ def random_perturbations(input_file: str, label_file: str, perturbations_per_sen
             pos_counter[pos[k]] += 1
             perturbations.append(perturbation)
             perturbation_labels.append(label)
-    print(pos_counter)
+    print(analyse_rules(pos_counter))
     return perturbations, perturbation_labels
 
 

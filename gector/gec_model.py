@@ -314,7 +314,7 @@ class GecBERTModel(object):
 
             final_batch, pred_ids, cnt = self.update_final_batch(final_batch, pred_ids, pred_batch, prev_preds_dict)
             if all_steps:
-                all_batches.append(final_batch)
+                all_batches.append((final_batch, probabilities, idxs))
             total_updates += cnt
             if not pred_ids:
                 break

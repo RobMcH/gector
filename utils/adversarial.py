@@ -103,12 +103,15 @@ def find_word_perturbation(sentence: str, label: str, target_idx: List[int], num
         elif pos == "NUM" or pos == "PROPN" or pos == "PART":
             # Remain unchanged.
             perturbation = target_token.text
+            # For analysing which rules were used.
+            pos = "NUM-PROPN-PART"
         elif pos == "PUNCT":
             # Delete punctuation.
             perturbation = ""
         else:
             # Delete or UNK.
             perturbation = perturb(target_token)
+            pos = "OTHER"
         # Return perturbed input and its label.
         sentence = generate_output(doc, perturbation, target_idx[i])
         perturbations.append(sentence)
