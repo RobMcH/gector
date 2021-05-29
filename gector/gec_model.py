@@ -290,7 +290,7 @@ class GecBERTModel(object):
             all_results.append(get_target_sent_by_edits(tokens, edits))
         return all_results
 
-    def handle_batch(self, full_batch):
+    def handle_batch(self, full_batch, all_steps: bool = False):
         """
         Handle batch of requests.
         """
@@ -300,7 +300,7 @@ class GecBERTModel(object):
         short_ids = [i for i in range(len(full_batch)) if len(full_batch[i]) < self.min_len]
         pred_ids = [i for i in range(len(full_batch)) if i not in short_ids]
         total_updates = 0
-
+        all_batches = []
         for n_iter in range(self.iterations):
             orig_batch = [final_batch[i] for i in pred_ids]
             sequences = self.preprocess(orig_batch)
@@ -313,10 +313,13 @@ class GecBERTModel(object):
                 print(f"Iteration {n_iter + 1}. Predicted {round(100 * len(pred_ids) / batch_size, 1)}% of sentences.")
 
             final_batch, pred_ids, cnt = self.update_final_batch(final_batch, pred_ids, pred_batch, prev_preds_dict)
+            if all_steps:
+                all_batches.append(final_batch)
             total_updates += cnt
             if not pred_ids:
                 break
-
+        if all_steps:
+            return final_batch, total_updates, all_batches
         return final_batch, total_updates
 
     def extract_candidate_words(self, full_batch: List[str], layer: int = 0, n: int = 1, aggregation: str = 'sum',

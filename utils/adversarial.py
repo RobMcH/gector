@@ -48,21 +48,24 @@ def find(doc: spacy.tokens.Doc, idx: int) -> int:
     return counter
 
 
-def convert_sentence(sent: str, label: str, model, num_perturbations: int) -> Tuple[List[Tuple], np.ndarray, List[str]]:
+def convert_sentence(sent: str, label: str, model, num_perturbations: int) -> Tuple[List[Tuple], np.ndarray, List[str],
+                                                                                    List[int]]:
     # Get the aggregated attention weights for each token, generate adversarial examples.
     tokens = [token.text for token in nlp(sent)]
     weights = model.extract_candidate_words([tokens], return_attention=True)
     weights /= np.sum(weights)
-    perturbations = []
+    perturbations, indices = [], []
     for i in range(num_perturbations):
-        perturbations.append(random_perturbation(sent, label)[:2])
-    return perturbations, weights, tokens
+        perturbation, label, _, indices_temp = random_perturbation(sent, label)
+        perturbations.append((perturbation, label))
+        indices.extend(indices_temp)
+    return perturbations, weights, tokens, indices
 
 # --- --- #
 
 
 def random_perturbation(sentence: str, label: str, num: int = 1) -> Tuple[
-        List[str], List[str], List[str]]:
+        List[str], List[str], List[str], List[int]]:
     # Choose a random index w.r.t. the spacy tokenisation.
     sent_length = len(nlp(sentence))
     idx = random.sample(range(0, sent_length), np.minimum(num, sent_length))
@@ -71,8 +74,8 @@ def random_perturbation(sentence: str, label: str, num: int = 1) -> Tuple[
 
 
 def find_word_perturbation(sentence: str, label: str, target_idx: List[int], num: int = 1) -> Tuple[
-        List[str], List[str], List[str]]:
-    perturbations, labels, pos_list = [], [], []
+        List[str], List[str], List[str], List[int]]:
+    perturbations, labels, pos_list, indices = [], [], [], []
     for i in range(num):
         # Obtain pos tags and target token.
         doc = nlp(sentence)
@@ -111,7 +114,11 @@ def find_word_perturbation(sentence: str, label: str, target_idx: List[int], num
         perturbations.append(sentence)
         labels.append(label)
         pos_list.append(pos)
-    return perturbations, labels, pos_list
+        if len(perturbation) > 0:
+            indices.append(target_idx[i])
+        else:
+            indices.append(-1)
+    return perturbations, labels, pos_list, indices
 
 
 def generate_output(doc: spacy.tokens.Doc, perturbation: str, idx: int) -> str:
