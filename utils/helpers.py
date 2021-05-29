@@ -207,5 +207,5 @@ def get_weights_name(transformer_name, lowercase):
 def analyse_rules(counter: dict):
     normaliser = sum(counter.values())
     for key in counter.keys():
-        counter[key] = counter[key] / normaliser
+        counter[key] = round(counter[key] / normaliser * 100, 2)
     return counter
