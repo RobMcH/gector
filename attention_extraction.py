@@ -69,7 +69,7 @@ def random_perturbations(input_file: str, label_file: str, perturbations_per_sen
         perturbations_temp, labels_temp, pos, _ = adv.random_perturbation(sent, labels[i], perturbations_per_sent)
         for k in range(len(perturbations_temp)):
             perturbation, label = perturbations_temp[k], labels_temp[k]
-            if len(perturbation.strip()) == 0 or perturbation == data[i]:
+            if len(perturbation.strip()) == 0 or perturbation == data[i] or perturbation == label:
                 # Ignore empty or duplicate perturbations.
                 continue
             pos_counter[pos[k]] += 1

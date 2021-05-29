@@ -306,15 +306,13 @@ class GecBERTModel(object):
             sequences = self.preprocess(orig_batch)
             if not sequences:
                 break
-
             probabilities, idxs, error_probs = self.predict(sequences)
             pred_batch = self.postprocess_batch(orig_batch, probabilities, idxs, error_probs)
             if self.log:
                 print(f"Iteration {n_iter + 1}. Predicted {round(100 * len(pred_ids) / batch_size, 1)}% of sentences.")
-
-            final_batch, pred_ids, cnt = self.update_final_batch(final_batch, pred_ids, pred_batch, prev_preds_dict)
             if all_steps:
                 all_batches.append((final_batch, probabilities, idxs))
+            final_batch, pred_ids, cnt = self.update_final_batch(final_batch, pred_ids, pred_batch, prev_preds_dict)
             total_updates += cnt
             if not pred_ids:
                 break

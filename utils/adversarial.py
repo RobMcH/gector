@@ -6,6 +6,9 @@ from typing import Tuple, Set, List
 import nodebox_linguistics_extended as nle
 from nltk.corpus import wordnet as wn
 
+
+# Set random seed to system time; script will be called multiple times and perturbations should differ.
+random.seed()
 # Used for obtaining POS tags.
 nlp = spacy.load("en_core_web_sm", disable=["ner", "lemmatizer"])
 # Pronoun lists #
