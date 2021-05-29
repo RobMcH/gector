@@ -56,8 +56,8 @@ def convert_sentence(sent: str, label: str, model, num_perturbations: int) -> Tu
     weights /= np.sum(weights)
     perturbations, indices = [], []
     for i in range(num_perturbations):
-        perturbation, label, _, indices_temp = random_perturbation(sent, label)
-        perturbations.append((perturbation, label))
+        perturbation, label_temp, _, indices_temp = random_perturbation(sent, label)
+        perturbations.append((perturbation, label_temp))
         indices.extend(indices_temp)
     return perturbations, weights, tokens, indices
 

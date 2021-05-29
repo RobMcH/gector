@@ -44,7 +44,7 @@ def attention_perturbations(input_file: str, label_file: str, model: GecBERTMode
     indices = np.where(lengths >= model.min_len)[0]
     pos_counter = Counter()
     for j, i in tqdm(enumerate(indices), total=indices.size):
-        perturbations_temp, labels_temp, pos = adv.find_word_perturbation(data[i], labels[i], batch_extracted_words[j],
+        perturbations_temp, labels_temp, pos, _ = adv.find_word_perturbation(data[i], labels[i], batch_extracted_words[j],
                                                                           perturbations_per_sent)
         for k in range(len(perturbations_temp)):
             perturbation, label = perturbations_temp[k], labels_temp[k]
@@ -66,7 +66,7 @@ def random_perturbations(input_file: str, label_file: str, perturbations_per_sen
     perturbations, perturbation_labels = [], []
     pos_counter = Counter()
     for i, sent in tqdm(enumerate(data), total=len(data)):
-        perturbations_temp, labels_temp, pos = adv.random_perturbation(sent, labels[i], perturbations_per_sent)
+        perturbations_temp, labels_temp, pos, _ = adv.random_perturbation(sent, labels[i], perturbations_per_sent)
         for k in range(len(perturbations_temp)):
             perturbation, label = perturbations_temp[k], labels_temp[k]
             if len(perturbation.strip()) == 0 or perturbation == data[i]:
