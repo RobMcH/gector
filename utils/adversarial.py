@@ -51,18 +51,18 @@ def find(doc: spacy.tokens.Doc, idx: int) -> int:
     return counter
 
 
-def convert_sentence(sent: str, label: str, model, num_perturbations: int) -> Tuple[List[Tuple], np.ndarray, List[str],
-                                                                                    List[int]]:
+def convert_sentence(sent: str, label: str, model) -> Tuple[List[Tuple[str, str]], np.ndarray, list, List[int]]:
     # Get the aggregated attention weights for each token, generate adversarial examples.
     tokens = [token.text for token in nlp(sent)]
-    weights = model.extract_candidate_words([tokens], return_attention=True)
+    max_idxs, weights = model.extract_candidate_words([tokens], return_attention=True)
+    min_idxs = model.extract_candidate_words([tokens], min_scores=True)
     weights /= np.sum(weights)
-    perturbations, indices = [], []
-    for i in range(num_perturbations):
-        perturbation, label_temp, _, indices_temp = random_perturbation(sent, label)
-        perturbations.append((perturbation, label_temp))
-        indices.extend(indices_temp)
-    return perturbations, weights, tokens, indices
+    # Generate one max attention, one min attention, and one random perturbation.
+    max_perturbation, max_label, _, max_idx = find_word_perturbation(sent, label, max_idxs[0], 1)
+    min_perturbation, min_label, _, min_idx = find_word_perturbation(sent, label, min_idxs[0], 1)
+    rnd_perturbation, rnd_label, _, rnd_idx = random_perturbation(sent, label)
+    return [(max_perturbation[0], max_label[0]), (min_perturbation[0], min_label[0]),
+            (rnd_perturbation[0], rnd_label[0])], weights, tokens, [max_idx[0], min_idx[0], rnd_idx[0]]
 
 # --- --- #
 

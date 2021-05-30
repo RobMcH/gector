@@ -413,5 +413,5 @@ class GecBERTModel(object):
                     sent_max_n_idxs = np.flip(sent_max_n_idxs)
                 max_idxs.append(sent_max_n_idxs[-n:].tolist())
         if return_attention:
-            return np.array(attention_scores)
+            return max_idxs, np.array(attention_scores)
         return max_idxs
