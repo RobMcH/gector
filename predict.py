@@ -1,4 +1,5 @@
 import argparse
+import pandas as pd
 
 from utils.helpers import read_lines
 from gector.gec_model import GecBERTModel
@@ -26,6 +27,55 @@ def predict_for_file(input_file, output_file, model, batch_size=32):
     return cnt_corrections
 
 
+def predict_for_file_mask(input_file, output_file, model, batch_size=32):
+    # IMPORTANT: ensure number of iterations is set to 1
+    # And min_len = 0, max_len = 1000
+    test_data = read_lines(input_file)
+    masked_sentences = []
+    predictions = []
+    error_probs_full = []
+    masked_words = []
+    sent_map = []
+    cnt_corrections = 0
+    batch = []
+    for s_idx, sent in enumerate(test_data):
+        sent_split = sent.split()
+        for w_idx, masked_word in enumerate(sent_split):
+            masked_words.append(masked_word)
+            mask_sent = sent_split[:w_idx] + ['[MASK]'] + sent_split[w_idx+1:]
+            masked_sentences.append(mask_sent)
+            batch.append(mask_sent)
+            sent_map.append(s_idx)
+            if len(batch) == batch_size:
+                preds, cnt, error_probs = model.handle_batch(batch, return_error_probs=True)
+                error_probs_full.extend(error_probs)
+                predictions.extend(preds)
+                # print(len(masked_words), len(sent_map), len(error_probs_full) )
+                # if len(error_probs_full) != len(sent_map):
+                #     print(len(masked_words), len(sent_map), len(error_probs_full) + len(batch))
+                cnt_corrections += cnt
+                batch = []
+        if  len(error_probs_full) + len(batch) != len(sent_map):
+            print(len(masked_words), len(sent_map), len(error_probs_full) + len(batch))
+
+    if batch:
+        preds, cnt, error_probs = model.handle_batch(batch, return_error_probs=True)
+        error_probs_full.extend(error_probs)
+        predictions.extend(preds)
+        cnt_corrections += cnt
+
+    error_prob_df = pd.DataFrame({'words': masked_words, 'id': sent_map, 'error_probs': error_probs_full})
+    min_prob_words = error_prob_df.groupby('id').min()
+    min_prob_words.to_csv('test_cases/masked_results.csv')
+
+    with open('test_cases/masked_inputs.txt', 'w') as f:
+        f.write("\n".join([" ".join(x) for x in masked_sentences]) + '\n')
+
+    with open(output_file, 'w') as f:
+        f.write("\n".join([" ".join(x) for x in predictions]) + '\n')
+    return cnt_corrections
+
+
 def main(args):
     # get all paths
     model = GecBERTModel(vocab_path=args.vocab_path,
@@ -42,7 +92,7 @@ def main(args):
                          weigths=args.weights,
                          remove_first_layer=args.remove_first_layer)
 
-    cnt_corrections = predict_for_file(args.input_file, args.output_file, model,
+    cnt_corrections = predict_for_file_mask(args.input_file, args.output_file, model,
                                        batch_size=args.batch_size)
     # evaluate with m2 or ERRANT
     print(f"Produced overall corrections: {cnt_corrections}")

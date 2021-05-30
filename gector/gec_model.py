@@ -317,7 +317,7 @@ class GecBERTModel(object):
             all_results.append(get_target_sent_by_edits(tokens, edits))
         return all_results
 
-    def handle_batch(self, full_batch):
+    def handle_batch(self, full_batch, return_error_probs=False):
         """
         Handle batch of requests.
         """
@@ -343,8 +343,10 @@ class GecBERTModel(object):
             total_updates += cnt
             if not pred_ids:
                 break
-
-        return final_batch, total_updates
+        if return_error_probs:
+            return final_batch, total_updates, error_probs
+        else:
+            return final_batch, total_updates
 
     def extract_attention_weights(self, full_batch: List[str], layer: int = 0, head_aggregation: str = 'sum') ->\
             List[torch.Tensor]:
