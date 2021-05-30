@@ -312,7 +312,8 @@ class GecBERTModel(object):
             if self.log:
                 print(f"Iteration {n_iter + 1}. Predicted {round(100 * len(pred_ids) / batch_size, 1)}% of sentences.")
             if all_steps:
-                all_batches.append((deepcopy(final_batch), deepcopy(probabilities), deepcopy(idxs)))
+                all_batches.append((deepcopy(final_batch), deepcopy(probabilities), deepcopy(idxs),
+                                    deepcopy(error_probs)))
             final_batch, pred_ids, cnt = self.update_final_batch(final_batch, pred_ids, pred_batch, prev_preds_dict)
             total_updates += cnt
             if not pred_ids:
