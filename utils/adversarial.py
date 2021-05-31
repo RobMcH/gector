@@ -35,9 +35,11 @@ PREP = ["with", "at", "to", "from", "into", "against", "of", "in", "for", "on", 
 AUX = ["be", "can", "could", "dare", "do", "have", "may", "might", "must", "need", "ought", "shall", "should",
        "will", "would"]
 AUX_REPLACEMENT = {"be", "have"}
-
-
 # --- --- #
+# Adverb Exceptions #
+ADV_EXCEPTIONS = {"here", "there", "now", "soon", "still", "then", "today", "yet", "ever", "never", "often",
+                  "sometimes", "always", "tomorrow", "yesterday", "ahead", "outside", "inside", "somewhere", "near",
+                  "ahead", "fast"}
 # Helper functions #
 
 
@@ -223,6 +225,8 @@ def perturb_adjective(token: spacy.tokens.token.Token, occurrence: int, label: s
 
 
 def perturb_adverb(token: spacy.tokens.token.Token, occurrence: int, label: str) -> Tuple[str, str]:
+    if token.text in ADV_EXCEPTIONS:
+        return token.text, label
     text = replace_by_synonym(token)
     # Change label accordingly if token is changed for a synonym.
     label = generate_label(label, token.text, text, occurrence)
@@ -287,9 +291,9 @@ def get_synonyms(token: spacy.tokens.token.Token) -> Set[str]:
     if wn_tag == "":
         return token.text
     synsets = wn.synsets(token.text, pos=wn_tag)
-    synonyms = set(token.text)
+    synonyms = {token.text}
     for sn in synsets:
-        synonyms.update(sn.lemma_names())
+        synonyms.update({lemma for lemma in sn.lemma_names() if "_" not in lemma and "'" not in lemma})
     return synonyms
 
 
