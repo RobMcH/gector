@@ -172,7 +172,8 @@ def perturb_verb(token: str) -> str:
     try:
         token_tense = nle.verb.tense(token)
         tense = VERB_TENSES[token_tense]
-        negated = nle.verb.is_tense(token, token_tense, negated=True)
+        # Find out if verb has been negated. Nodebox' built in functionality for this is broken.
+        negated = token.endswith("n't")
     except KeyError:
         # Handle the case when the verb is unknown.
         return token
