@@ -125,9 +125,9 @@ if __name__ == '__main__':
                         help='Path to the evalset file',
                         default='test_cases/input_test.txt',
                         required=True)
-    parser.add_argument('--output_file',
-                        help='Path to the output file',
-                        default='test_cases/output_test.txt',
+    parser.add_argument('--label_file',
+                        help='Path to the label file',
+                        default='test_cases/label_test.txt',
                         required=True)
     parser.add_argument('--max_len',
                         type=int,
