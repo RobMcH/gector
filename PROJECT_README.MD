@@ -44,7 +44,7 @@ with `CORPUS` being the path to the original data and `ADV` being the path to th
 above). To use this data the GECToR pre-processing script needs to be run on it:  
 ```python utils/preprocess_data.py -s SOURCE -t TARGET -o OUTPUT_FILE```
 with `SOURCE` being the input and `TARGET` being the corresponding labels. The fine-tuning can then be run with the following
-command:
+command:  
 ```python train.py --train_set INPUT --dev_set INPUT --model_dir MODELS --n_epoch 1 --transformer_model 'bert' --special_tokens_fix 0 --pretrain_folder PATH_TO_MODEL_FOLDER --pretrain MODEL_NAME --vocab_path data/output_vocabulary/ --cold_steps_count 0 --accumulation_size 2 --tn_prob 1 --tp_prob 1 --updates_per_epoch 0 --skip_correct 0```  
 where `INPUT` denotes the pre-processed data, `MODELS` the folder where the fine-tuned models will be output to,
 `PATH_TO_MODEL_FOLDER` the path to the folder where the pre-trained model is stored, `MODEL_NAME` the filename of the model (without file extension),
