@@ -1,5 +1,6 @@
 # PROJECT README
-In this readme we outline how to use our code and how to reproduce the results reported in the report.
+In this readme we outline how to use our code and how to reproduce the results reported in the report. All code is also
+available on Github on our [project repository](https://github.com/RobMcH/gector).
 
 ## Setup
 To install the dependencies of the repository execute the command `pip install -r requirements.txt`. Additionally, a

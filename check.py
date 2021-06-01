@@ -37,11 +37,11 @@ def check_preds(pred_file, gt_file, train_file, correct_pred_file, correct_pred_
 
 
 def main():
-    pred_file = 'test_cases/wi_train_preds.txt'
-    gt_file = 'gector_data/wi_train_cor.txt'
+    pred_file = 'model_predictions'
+    gt_file = '../GEC-Data/gector_data/wi_dev_cor.txt'
     output_file_1 = 'test_cases/correct_sents_pred.txt'
     output_file_2 = 'test_cases/correct_sents_ori.txt'
-    train_file = 'gector_data/wi_train_ori.txt'
+    train_file = '../GEC-Data/gector_data/wi_dev_ori.txt'
     check_preds(pred_file, gt_file, train_file, output_file_1, output_file_2)
 
 
