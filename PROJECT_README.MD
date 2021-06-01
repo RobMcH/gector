@@ -2,8 +2,8 @@
 In this readme we outline how to use our code and how to reproduce the results reported in the report.
 
 ## Setup
-To install the dependencies of the repository execute the command `pip install -r requirements.txt`.
-Further, the [M2 scorer](https://www.comp.nus.edu.sg/~nlp/conll14st.html) as well as [ERRANT 2.0](https://github.com/chrisjbryant/errant)
+To install the dependencies of the repository execute the command `pip install -r requirements.txt`. Additionally, a
+spacy model must be installed via `python -m spacy download en_core_web_sm`. Further, the [M2 scorer](https://www.comp.nus.edu.sg/~nlp/conll14st.html) as well as [ERRANT 2.0](https://github.com/chrisjbryant/errant)
 are required for evaluation. Note that they require specific Python and spacy versions which clash with our dependencies,
 therefore separate Python installations might be required to run them.
 
