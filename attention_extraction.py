@@ -93,12 +93,12 @@ def main(args):
                              confidence=args.additional_confidence,
                              is_ensemble=args.is_ensemble,
                              weigths=args.weights)
-        perturbations, perturbation_labels = attention_perturbations(args.input_file, args.output_file, model,
+        perturbations, perturbation_labels = attention_perturbations(args.input_file, args.label_file, model,
                                                                      args.accumulator, args.head_aggregator,
                                                                      args.batch_size, args.num_perturbations,
                                                                      args.attention_sorting)
     elif args.attack == 'random':
-        perturbations, perturbation_labels = random_perturbations(args.input_file, args.output_file,
+        perturbations, perturbation_labels = random_perturbations(args.input_file, args.label_file,
                                                                   args.num_perturbations)
     # Write to file.
     with open(f"{args.attack}_{args.accumulator}_{args.head_aggregator}_perturbed_inputs.txt", "w") as f:
